@@ -339,6 +339,7 @@ namespace Flintstones
     public List<string> YourFases;
     public List<string> YourIocs;
     public List<string> YourGIocs;
+    public List<string> YourDions;
     public List<string> YourCradhs;
     public List<string> YourPramhs;
     public List<string> YourAttacks1;
@@ -445,11 +446,6 @@ namespace Flintstones
     public uint bug44;
     public DateTime bugtimer = DateTime.MinValue;
 
-    private bool BotThreadRunning = true;
-    private bool SpeakCommandThreadRunning = true;
-    private bool EntityNameThreadRunning = true;
-    private bool WalkThreadRunning = true;
-    private bool QuestThreadRunning = true;
 
     private bool clientReceiving;
     private bool serverReceiving;
@@ -459,10 +455,10 @@ namespace Flintstones
     private List<byte> fullServerBuffer = new List<byte>();
     private byte clientOrdinal;
     private byte serverOrdinal;
-    private System.Collections.Generic.Queue<ServerPacket> clientSendQueue = new System.Collections.Generic.Queue<ServerPacket>();
-    private System.Collections.Generic.Queue<ClientPacket> serverSendQueue = new System.Collections.Generic.Queue<ClientPacket>();
-    private System.Collections.Generic.Queue<ClientPacket> clientProcessQueue = new System.Collections.Generic.Queue<ClientPacket>();
-    private System.Collections.Generic.Queue<ServerPacket> serverProcessQueue = new System.Collections.Generic.Queue<ServerPacket>();
+    private Queue<ServerPacket> clientSendQueue = new Queue<ServerPacket>();
+    private Queue<ClientPacket> serverSendQueue = new Queue<ClientPacket>();
+    private Queue<ClientPacket> clientProcessQueue = new Queue<ClientPacket>();
+    private Queue<ServerPacket> serverProcessQueue = new Queue<ServerPacket>();
     
 
     // Dictionary to hold max stats for each character class
@@ -480,7 +476,6 @@ namespace Flintstones
 
     public Dictionary<string, DateTime> PreventSpam { get; set; }
 
-    public Thread EntityNameThread { get; set; }
 
     public Dictionary<string, Arena> ArenaCounter { get; set; }
 
@@ -516,9 +511,6 @@ namespace Flintstones
       }
     }
 
-    public Thread RelogThread { get; set; }
-
-    public Thread SpeakCommandThread { get; set; }
 
     public uint LastClickID { get; set; }
 
@@ -545,12 +537,6 @@ namespace Flintstones
     public int DistanceFrom(Location loc) => Math.Abs(this.ServerLocation.X - loc.X) + Math.Abs(this.ServerLocation.Y - loc.Y);
 
     private int RandomNumber(int min, int max) => this.random.Next(min, max);
-
-    public Thread WalkThread { get; set; }
-
-    public Thread QuestsThread { get; set; }
-
-    public Thread GetF1IDThread { get; set; }
 
     public int Currentpopuptype { get; set; }
 
@@ -668,10 +654,6 @@ namespace Flintstones
 
     public ClientTab Tab { get; private set; }
 
-    public Thread BotThread { get; private set; }
-
-    public Thread ClientLoopThread { get; private set; }
-
     public byte Seed { get; set; }
 
     public byte[] Key { get; set; }
@@ -687,6 +669,24 @@ namespace Flintstones
     private Task SpeakCommandTask;
     private Walking _walkCommands;
     private Task WalkCommandTask;
+    private Task BotCommandTask;
+
+
+    public Thread BotThread { get; private set; }
+
+    public Thread ClientLoopThread { get; private set; }
+
+
+    private bool BotThreadRunning = true;
+    private bool SpeakCommandThreadRunning = true;
+    private bool EntityNameThreadRunning = true;
+    private bool WalkThreadRunning = true;
+    private bool QuestThreadRunning = true;
+    public Thread WalkThread { get; set; }
+    public Thread QuestsThread { get; set; }
+    public Thread RelogThread { get; set; }
+    public Thread EntityNameThread { get; set; }
+
     private Dictionary<string, Dictionary<DugonColor, Action>> dugonMeditations;
 
     public Client(Server server, Socket socket, EndPoint endPoint)
@@ -750,6 +750,7 @@ namespace Flintstones
       this.YourIocs = new List<string>();
       this.YourGIocs = new List<string>();
       this.YourCradhs = new List<string>();
+      this.YourDions = new List<string>();
       this.YourPramhs = new List<string>();
       this.YourAttacks1 = new List<string>();
       this.YourAttacks2 = new List<string>();
@@ -765,14 +766,13 @@ namespace Flintstones
       this.RelogThread.Abort();
       this.EntityNameThread = new Thread(new ThreadStart(EntityNameLoop));
       this.EntityNameThread.Name = "EntityNameThread";
-      this.BotThread = new Thread(new ThreadStart(BotLoop));
-      this.BotThread.Name = "BotThread";
-      //this.WalkThread = new Thread(new ThreadStart(Walking));
-      //this.WalkThread.Name = "WalkThread";
+
+      //this.BotThread = new Thread(new ThreadStart(BotLoop));
+      //this.BotThread.Name = "BotThread";
+
       this.QuestsThread = new Thread(new ThreadStart(Questing));
       this.QuestsThread.Name = "QuestThread";
-      //this.SpeakCommandThread = new Thread(new ThreadStart(SpeakThread));
-      //this.SpeakCommandThread.Name = "SpeakCommandThread";
+
       this.ClientLoopThread = new Thread(new ThreadStart(ClientLoop));
       this.ClientLoopThread.Name = "ClientLoopThread";
       this.ClientLoopThread.Start();
@@ -786,6 +786,7 @@ namespace Flintstones
 
       SpeakCommandTask = Task.Run(() => _speakCommands.Run(_cts.Token));
       WalkCommandTask  = Task.Run(() => _walkCommands.Run(_cts.Token));
+      BotCommandTask = Task.Run(() => BotLoop(_cts.Token));
     }
 
     private bool IsIncapacitated()
@@ -7218,1782 +7219,1684 @@ label_3045:
       }
     }
 
-    private void Walking()
+
+    private void BotLoop(CancellationToken token)
     {
-      WalkThreadRunning = true;
-      while (WalkThreadRunning)
+      Console.WriteLine($"BotLoop thread of {Name} Started");
+
+      while (!token.IsCancellationRequested)
       {
-        try
+        Thread.Sleep(200);
+
+        if (pause) continue;
+        if (this.Statistics.CurrentHP == 0U) continue;
+        if (this.IsSkulled) continue;
+
+
+        if (this.waitingforlabor && this.whisperagain != DateTime.MinValue && DateTime.UtcNow.Subtract(this.whisperagain).TotalSeconds >= 1.0)
         {
-          if (this.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(this.refreshdelay).TotalMilliseconds < 1200.0)
+          if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
+            this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
+          this.whisperagain = DateTime.MinValue;
+        }
+        if (this.Tab.clickladder.Checked)
+        {
+          foreach (Npc nearbyNormalMonster in this.NearbyNormalMonsters())
           {
-            Thread.Sleep(200);
-            return;
-          }
-
-          if (this.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(this.refreshdelay).TotalMilliseconds >= 1200.0)
-            this.refreshdelay = DateTime.MinValue;
-
-          if (this.pause || this.pausewalk || this.donotwalk)
-          {
-            Thread.Sleep(200);
-            return;
-          }
-
-          if (IsIncapacitated())
-          {
-            Thread.Sleep(200);
-            return;
-          }
-
-            if (this.Tab.wayregionson.Checked &&
-                this.laststep != DateTime.MinValue &&
-                (DateTime.UtcNow - this.laststep).TotalMilliseconds > 6000 &&
-                this.lastsuccessfulcast != DateTime.MinValue &&
-                (DateTime.UtcNow - this.lastsuccessfulcast).TotalMilliseconds > 10000)
+            if (nearbyNormalMonster != null && nearbyNormalMonster.Image == 362 && nearbyNormalMonster.DistanceFrom(this.ServerLocation) < 5)
             {
-            this.Refresh();
-            Thread.Sleep(1200);
-            this.laststep = DateTime.UtcNow;
-          }
-          if (this.Tab.vredaislings && this.Tab.walktored.Checked && !this.IsSurrounded(this.ServerLocation))
-          {
-            foreach (Player e in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-            {
-              if (e != null && (int) e.ID != (int) this.PlayerID && (Server.StaticCharacters[e.ID].isskulled || Server.StaticCharacters[e.ID].IsSkulled) && this.IsClosestToYou(e.Location) && !this.IsSurrounded(e.Location) && (this.GroupMembers.Contains(e.Name) || Server.Alts.ContainsKey(e.Name.ToLower()) || Server.friendlist != null && Server.friendlist.Contains(e.Name.ToLower())) && e.IsOnScreen && (!Server.Alts.ContainsKey(e.Name.ToLower()) || Server.Alts[e.Name.ToLower()].IsSkulled) && this.HasItem("Komadium"))
-              {
-                this.Red(e);
-                break;
-              }
+              this.ClickEntity(nearbyNormalMonster.ID);
+              this.SendMessage("click");
+              break;
             }
           }
-          if (this.oktofollow)
+        }
+        if (this.Tab.vassistonthischar)
+        {
+          if (this.Currentnpctext.Contains("I assist this work of Magic."))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 39, (byte) 0, (byte) 100, (byte) 1, (byte) 1);
+          if (this.Currentnpctext.Contains("I embue the enchantment with my essence of Magic."))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 39, (byte) 0, (byte) 166, (byte) 1, (byte) 1);
+          if (this.Currentnpctext.Contains("I assist the Tailoring"))
+            this.PopupOption3();
+          if (this.Currentnpctext.Contains("I assist the preparation"))
+            this.PopupOption3();
+          else if (this.Currentnpctext.Contains(" is attempting to advance degree in "))
+            this.PopupOption2();
+          else if (this.Currentnpctext.Contains("is collecting fior"))
+            this.PopupOption3();
+          else if (this.Currentnpctext.Contains("is desecrating an item of Cail or Deoch"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 252, (byte) 0, (byte) 55, (byte) 1, (byte) 2);
+          else if (this.Currentnpctext.Contains("A curse on you for bothering me!"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 136, (byte) 1, (byte) 2);
+          if (this.Currentnpctext.Contains("Curse the Disrepectful Hubae"))
+            this.PopupOption2();
+          if (this.Currentnpctext.Contains("is attempting wizardry research"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 59, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
+          if (this.Currentnpctext.Contains("is attempting to higgle"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 125, (byte) 0, (byte) 70, (byte) 1, (byte) 2);
+        }
+
+        if (!this.autowalkon && this.Tab.vlaborbutton && this.Tab.laborname.Text != string.Empty)
+        {
+          Npc npcByName = this.FindNpcByName<Npc>("Cecil");
+          if (this.MapInfo.Number == 135)
+            npcByName = this.FindNpcByName<Npc>("Cassidy");
+          else if (this.MapInfo.Number == 167)
+            npcByName = this.FindNpcByName<Npc>("Lamont");
+          else if (this.MapInfo.Number == 422)
+            npcByName = this.FindNpcByName<Npc>("Antonio");
+          else if (this.MapInfo.Number == 148)
+            npcByName = this.FindNpcByName<Npc>("Jilt");
+          else if (this.MapInfo.Number == 432)
+            npcByName = this.FindNpcByName<Npc>("Argus");
+          if (npcByName != null && !this.banker && npcByName.IsOnScreen)
           {
-            if (!this.disstopwalk)
+            this.banker = true;
+            this.DialogueRespond(new uint?(npcByName.ID), "Labor");
+            if (!this.SafeToWalkFast)
+              Thread.Sleep(2000);
+          }
+
+          if (this.Currentnpctext.Contains("You have no time"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 10);
+          if (this.Currentnpctext.Contains("Hello.") && this.Currentnpctext.Contains("((laborfix))"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 11, (byte) 1, (byte) 1);
+          if (this.Currentnpctext.Contains("This will reset your labor"))
+          {
+            if (this.Tab.laborwhisper.Checked)
+              this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
+            this.Tab.laborbutton.Text = "Start";
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 75);
+            this.laborcount = 1;
+          }
+          if (this.Currentnpctext.Contains("You have already reset your labor."))
+          {
+            if (this.Tab.laborwhisper.Checked)
+              this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
+            this.SendMessage("Out of labor.");
+            foreach (Client client in Server.Alts.Values.ToArray<Client>())
             {
-              if (this.autowalkon)
+              if (client != null && client.Tab.requestlabornametext.Text == this.Name)
+                client.Tab.requestlabornametext.Text = string.Empty;
+            }
+            this.Tab.laborbutton.Text = "Start";
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 78);
+            do
+            {
+              Thread.Sleep(200);
+            }
+            while (this.Currentpopuptype != 10);
+            if (this.Tab.laborlogoff.Checked)
+              this.LogOff();
+          }
+          if (this.Currentnpctext.Contains("((labor fix))"))
+          {
+            if ((Decimal) this.laborcount < this.Tab.labordays.Value)
+            {
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 17, (byte) 1, (byte) 2);
+              do
               {
-                this.walkaround = false;
-                if (DateTime.UtcNow.Subtract(this.laststep).TotalSeconds > 2.0 && (this.ServerLocation.X != this.ClientLocation.X || this.ServerLocation.Y != this.ClientLocation.Y))
-                {
-                  this.Refresh();
-                  Thread.Sleep(1200);
-                  this.laststep = DateTime.MinValue;
-                }
-                this.AutoWalker();
-                this.AWTest();
+                Thread.Sleep(200);
               }
-              else if (this.Tab.walkeverytile.Checked)
+              while (this.Currentpopuptype != 4);
+              if (this.Currentpopuptype == 4)
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 25, (byte) 2, this.Tab.laborname.Text);
+              do
               {
-                if (!this.walkaround)
-                  this.walkaround = true;
-                if (this.Tab.vactonlyinmobs)
+                Thread.Sleep(200);
+              }
+              while (this.polishsuccess == 0);
+              if (this.polishsuccess == 2)
+              {
+                if (this.Tab.laborwhisper.Checked)
+                  this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
+                this.Tab.laborbutton.Text = "Start";
+              }
+              if (this.polishsuccess == 3)
+                this.Tab.laborbutton.Text = "Start";
+              this.polishsuccess = 0;
+              ++this.laborcount;
+            }
+            else
+            {
+              this.SaveTimedStuff(32);
+              this.SendMessage("Labor time saved");
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 17, (byte) 1, (byte) 3);
+              Thread.Sleep(1000);
+            }
+          }
+        }
+
+        if (this.Tab.vpraybutton && this.Tab.praytemple.Checked)
+        {
+          this.impingskill = true;
+          Npc npcByName = this.FindNpcByName<Npc>("Meaveen");
+          if (this.MapInfo.Number == 3015)
+            npcByName = this.FindNpcByName<Npc>("Audny");
+          else if (this.MapInfo.Number == 3017)
+            npcByName = this.FindNpcByName<Npc>("Vivianne");
+          else if (this.MapInfo.Number == 3019)
+            npcByName = this.FindNpcByName<Npc>("Erika");
+          else if (this.MapInfo.Number == 3013)
+            npcByName = this.FindNpcByName<Npc>("Camille");
+          else if (this.MapInfo.Number == 3009)
+            npcByName = this.FindNpcByName<Npc>("Evania");
+          else if (this.MapInfo.Number == 3011)
+            npcByName = this.FindNpcByName<Npc>("Gabriela");
+          else if (this.MapInfo.Number == 3018)
+            npcByName = this.FindNpcByName<Npc>("Greim");
+          if (npcByName != null && !this.templeassistant && npcByName.IsOnScreen)
+          {
+            this.templeassistant = true;
+            this.DialogueRespond(new uint?(npcByName.ID), "Prayer");
+          }
+          if (this.Currentnpctext.StartsWith("You have lost touch"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
+          if (this.Currentnpctext.Contains("Alone"))
+          {
+            if (this.Tab.useprayassistant.Checked && this.Tab.prayerassistant.Text != string.Empty)
+            {
+              this.assisted = false;
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 1);
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 96, (byte) 2, this.Tab.prayerassistant.Text);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (!this.assisted);
+              if (this.Currentnpctext.Contains("Praise Another"))
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
+              if (this.Currentnpctext.StartsWith("You have lost touch"))
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (this.polishsuccess == 0);
+              Thread.Sleep(200);
+              this.polishsuccess = 0;
+            }
+            else
+            {
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (!this.Currentnpctext.Contains("Praise Another"));
+              if (this.Currentnpctext.Contains("Praise Another"))
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
+              if (this.Currentnpctext.StartsWith("You have lost touch"))
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (this.polishsuccess == 0);
+              Thread.Sleep(200);
+              this.polishsuccess = 0;
+            }
+          }
+        }
+        if (this.Tab.vpraybutton && this.Tab.praynecklace.Checked)
+        {
+          this.impingskill = true;
+          if (this.Tab.prayhere.Checked)
+          {
+            if (this.HasSpell(this.PrayerSpell) && !this.MapInfo.Tiles[this.ServerLocation.X, this.ServerLocation.Y].HasPrayerSpell)
+              this.CastSpell(this.PrayerSpell);
+            if (this.MapInfo.Tiles[this.ServerLocation.X, this.ServerLocation.Y].SafeToDropNecklace)
+            {
+              if (this.HasItem(this.PrayerNeck))
+                this.DropItems(this.PrayerNeck);
+              else if (!this.HasItem(this.PrayerNeck))
+                this.Pickup(this.ServerLocation.X, this.ServerLocation.Y);
+            }
+          }
+          else if (this.Tab.prayxy.Checked && this.Tab.prayxytext.Text.Contains(","))
+          {
+            string[] strArray = this.Tab.prayxytext.Text.Split(',');
+            int x = int.Parse(strArray[0]);
+            int y = int.Parse(strArray[1]);
+            if (this.ServerLocation.WithinSquare(new Location(x, y), 2))
+            {
+              if (this.HasItem(this.PrayerNeck))
+              {
+                foreach (Item obj in this.Inventory)
                 {
-                  if (this.Mobbed)
-                    continue;
-                }
-                if (this.Tab.vwalktoloot && this.loot && this.walktoloot)
-                {
-                  Npc i = this.NearestItem();
-                  if (i != null && i.IsOnScreen && !this.ServerLocation.WithinSquare(i.Location, 2))
+                  if (obj != null && obj.Name == this.PrayerNeck)
                   {
-                    Point[] path = this.MapInfo.FindPath(this.ClientLocation.X, this.ClientLocation.Y, i.Location.X, i.Location.Y, false);
-                    if (path.Length == 0)
-                      i.OutofReach = true;
-                    if (path.Length != 0 && path.Length < i.DistanceFrom(this.ServerLocation) * 2)
-                    {
-                      this.WalkToLoot(i);
-                      continue;
-                    }
-                    if (this.walktoloot)
-                      this.walktoloot = false;
+                    this.Drop(x, y, obj.InventorySlot, 1);
+                    break;
                   }
-                  else if (i == null && this.walktoloot)
-                    this.walktoloot = false;
                 }
-                if (!this.Tab.topx.Text.Equals("") && !this.Tab.topy.Text.Equals("") && !this.Tab.bottomx.Text.Equals("") && !this.Tab.bottomy.Text.Equals(""))
-                  this.SearchAllTiles(int.Parse(this.Tab.topx.Text), int.Parse(this.Tab.topy.Text), int.Parse(this.Tab.bottomx.Text), int.Parse(this.Tab.bottomy.Text));
               }
-              else if (this.Tab.vwayregionson)
+              else if (!this.HasItem(this.PrayerNeck))
+                this.Pickup(x, y);
+            }
+          }
+          if (this.Currentnpctext.StartsWith("You have lost touch"))
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
+          if (this.Currentnpctext.Contains("Alone"))
+          {
+            if (this.Tab.useprayassistant.Checked && this.Tab.prayerassistant.Text != string.Empty)
+            {
+              this.assisted = false;
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 1);
+              do
               {
-                if (DateTime.UtcNow.Subtract(this.laststep).TotalSeconds > 2.0 && (this.ServerLocation.X != this.ClientLocation.X || this.ServerLocation.Y != this.ClientLocation.Y))
+                Thread.Sleep(200);
+              }
+              while (this.Currentpopuptype != 4);
+              if (this.Currentpopuptype == 4)
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 96, (byte) 2, this.Tab.prayerassistant.Text);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (!this.assisted);
+              if (this.Currentnpctext.Contains("Praise Another"))
+              {
+                if (this.prayscript == (byte) 30)
+                  this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 252, (byte) 1, (byte) 4);
+                else
+                  this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
+              }
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (this.polishsuccess == 0);
+              Thread.Sleep(200);
+              this.polishsuccess = 0;
+            }
+            else
+            {
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (!this.Currentnpctext.Contains("Praise Another"));
+              if (this.Currentnpctext.Contains("Praise Another"))
+              {
+                if (this.prayscript == (byte) 30)
+                  this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 252, (byte) 1, (byte) 4);
+                else
+                  this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
+              }
+              do
+              {
+                Thread.Sleep(200);
+              }
+              while (this.polishsuccess == 0);
+              Thread.Sleep(200);
+              this.polishsuccess = 0;
+            }
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Tailoring (cowl)"))
+        {
+          this.impingskill = true;
+          if (!this.Tab.ExternalChat.Visible)
+            this.Tab.BeginInvoke((Action) (() =>
+            {
+              this.Tab.ExternalChat.Text = this.Name + "'s Chat";
+              this.Tab.ExternalChat.Visible = true;
+              Rect rectangle = new Rect();
+              if (!User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
+                return;
+              this.Tab.ExternalChat.Location = new System.Drawing.Point(rectangle.left + 85, rectangle.top + 360);
+            }));
+          Npc npcByName = this.FindNpcByName<Npc>("Brody");
+          if (npcByName != null && npcByName.IsOnScreen)
+          {
+            if (!this.HasItem("Cowl"))
+            {
+              while (!this.InventoryIsFull())
+              {
+                if (this.Statistics.Gold < 500U)
                 {
-                  this.Refresh();
-                  Thread.Sleep(1200);
-                  this.laststep = DateTime.MinValue;
+                  this.SendMessage("Not enough gold!", "red");
+                  this.Tab.impskillbutton.Text = "Start";
                 }
-                if (!this.Tab.haltwalknonfriends.Checked || this.SafeToWalkFast || this.MapInfo.Number == 2141)
-                  this.WayRegion();
-              }
-              else if (this.Tab.vfollowplayer && this.Tab.vfollowtarget != string.Empty && this.follow_walk != 1)
-              {
-                if (DateTime.UtcNow.Subtract(this.laststep).TotalSeconds > 2.0 && (this.ServerLocation.X != this.ClientLocation.X || this.ServerLocation.Y != this.ClientLocation.Y))
+                if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
                 {
-                  this.Refresh();
-                  Thread.Sleep(1200);
-                  this.laststep = DateTime.MinValue;
+                  this.DialogueRespond(new uint?(npcByName.ID), "Buy Cowl");
+                  if (this.tooheavy)
+                  {
+                    this.tooheavy = false;
+                    goto label_498;
+                  }
+                  else if (this.distracted)
+                  {
+                    this.distracted = false;
+                    goto label_498;
+                  }
+                  else
+                  {
+                    Thread.Sleep(200);
+                    this.tailornoarmors = false;
+                  }
                 }
                 else
-                  this.Follow(this.Tab.vfollowtarget, this.Tab.vfollowdist);
+                  goto label_498;
               }
-              if (this.Tab.pigwalk.Checked)
+              this.tailornoarmors = false;
+            }
+            else if (this.tailornoarmors)
+            {
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 166);
+              this.DropItems("Cowl");
+              this.tailornoarmors = false;
+              Thread.Sleep(1000);
+              goto label_498;
+            }
+            else
+            {
+              this.DialogueRespond(new uint?(npcByName.ID), "Male Tailoring");
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
+              if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
               {
-                if (this.MainTarget != null && this.MainTarget.IsOnScreen && this.MapInfo.Number == 2141)
+                this.assisted = false;
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
+                int num = 0;
+                while (!this.assisted)
                 {
-                  if (DateTime.UtcNow.Subtract(this.laststep).TotalSeconds > 2.0 && (this.ServerLocation.X != this.ClientLocation.X || this.ServerLocation.Y != this.ClientLocation.Y))
+                  ++num;
+                  if (num <= 20)
                   {
-                    this.Refresh();
-                    Thread.Sleep(1200);
-                    this.laststep = DateTime.MinValue;
-                  }
-                  this.WalkOnTarget();
-                }
-                else if (this.HasMPig())
-                {
-                  if (this.HasFPig())
-                  {
-                    this.Tab.autowalker_locales.SelectedItem = (object) "Loures";
-                    this.Tab.walklocaleslist.SelectedItem = (object) "Throne Room";
-                    this.Tab.autowalker_button.Text = "Stop";
-                    this.autowalkon = true;
-                    this.Tab.pigwalk.Checked = false;
-                  }
-                }
-              }
-              else if (this.Tab.walktowards.Checked && !this.walktoloot && (this.WaitOnBlankNames() || !this.Tab.vactonlyinmobs || this.Tab.vactonlyinmobs && this.Mobbed))
-              {
-                if (this.itemdroppeddelay != DateTime.MinValue)
-                {
-                  if (DateTime.UtcNow.Subtract(this.itemdroppeddelay).TotalSeconds <= 3.0)
-                    goto label_92;
-                }
-                if (this.Tab.vwalktoloot && this.loot && this.walktoloot)
-                {
-                  Npc i = this.NearestItem();
-                  if (i != null && i.IsOnScreen && !this.ServerLocation.WithinSquare(i.Location, 2))
-                  {
-                    Point[] path = this.MapInfo.FindPath(this.ClientLocation.X, this.ClientLocation.Y, i.Location.X, i.Location.Y, false);
-                    if (path.Length == 0)
-                      i.OutofReach = true;
-                    if (path.Length != 0 && path.Length < i.DistanceFrom(this.ServerLocation) * 2)
+                    if (this.distracted)
                     {
-                      this.WalkToLoot(i);
-                      continue;
+                      this.distracted = false;
+                      goto label_498;
                     }
-                    if (this.walktoloot)
-                      this.walktoloot = false;
-                  }
-                  else if (i == null && this.walktoloot)
-                    this.walktoloot = false;
-                }
-                this.WalkTowardsNearestMonster();
-              }
-              else if (this.Tab.walktomonster.Checked)
-              {
-                if (!this.SpellBar.Contains((ushort) 10))
-                {
-                  if (this.Tab.vactonlyinmobs)
-                  {
-                    if (this.Tab.vactonlyinmobs)
-                    {
-                      if (!this.Mobbed)
-                        goto label_92;
-                    }
+                    else if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
+                      Thread.Sleep(200);
                     else
-                      goto label_92;
+                      goto label_498;
                   }
-                  if (this.MainTarget != null)
-                  {
-                    if (this.MainTarget.IsOnScreen)
-                    {
-                      if (this.MainTarget.Map == this.MapInfo.Number)
-                      {
-                        if (DateTime.UtcNow.Subtract(this.laststep).TotalSeconds > 2.0 && (this.ServerLocation.X != this.ClientLocation.X || this.ServerLocation.Y != this.ClientLocation.Y))
-                        {
-                          this.Refresh();
-                          Thread.Sleep(1200);
-                          this.laststep = DateTime.MinValue;
-                        }
-                        if (this.SurroundedCount == 0)
-                          this.WalkToTarget();
-                        else if (this.SurroundedCount != 4)
-                        {
-                          if (this.Tab.attackleaderstarget.Checked)
-                            this.WalkToTarget();
-                        }
-                      }
-                    }
-                  }
+                  else
+                    goto label_498;
                 }
+                Thread.Sleep(200);
+              }
+              else
+              {
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
+                Thread.Sleep(200);
+              }
+              this.RequestGroupList();
+              if (!this.SafeToWalkFast)
+                Thread.Sleep(4000);
+            }
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Tailoring"))
+        {
+          this.impingskill = true;
+          if (!this.Tab.ExternalChat.Visible)
+            this.Tab.BeginInvoke((Action) (() =>
+            {
+              this.Tab.ExternalChat.Text = this.Name + "'s Chat";
+              this.Tab.ExternalChat.Visible = true;
+              Rect rectangle = new Rect();
+              if (!User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
+                return;
+              this.Tab.ExternalChat.Location = new System.Drawing.Point(rectangle.left + 85, rectangle.top + 360);
+            }));
+          Npc npc = (Npc) null;
+          if (this.MapInfo.Number == 423)
+            npc = this.FindNpcByName<Npc>("Huberto");
+          else if (this.MapInfo.Number == 130)
+            npc = this.FindNpcByName<Npc>("Brody");
+          else if (this.MapInfo.Number == 183)
+            npc = this.FindNpcByName<Npc>("Arnljot");
+          else if (this.MapInfo.Number == 164)
+            npc = this.FindNpcByName<Npc>("Hali");
+          if (npc != null && npc.IsOnScreen)
+          {
+            if (!this.HasArmors())
+            {
+              this.Tab.impskillbutton.Text = "Start";
+              this.SendMessage("Get more armors");
+            }
+            else if (this.tailornoarmors)
+            {
+              this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 166);
+              this.DropArmors();
+              this.tailornoarmors = false;
+              Thread.Sleep(1000);
+              goto label_498;
+            }
+            else
+            {
+              if (this.HasMArmors())
+              {
+                this.DialogueRespond(new uint?(npc.ID), "Male Tailoring");
+                this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
+              }
+              else if (this.HasFArmors())
+              {
+                this.DialogueRespond(npc.ID, (byte) 5, (byte) 64);
+                this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
+              }
+              if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
+              {
+                this.assisted = false;
+                if (this.HasMArmors())
+                {
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
+                }
+                else if (this.HasFArmors())
+                {
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
+                }
+                int num = 0;
+                while (!this.assisted)
+                {
+                  ++num;
+                  if (num <= 20)
+                  {
+                    if (this.distracted)
+                    {
+                      this.distracted = false;
+                      goto label_498;
+                    }
+                    else if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
+                      Thread.Sleep(200);
+                    else
+                      goto label_498;
+                  }
+                  else
+                    goto label_498;
+                }
+                Thread.Sleep(200);
+              }
+              else
+              {
+                if (this.HasMArmors())
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
+                else if (this.HasFArmors())
+                  this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
+                Thread.Sleep(200);
+              }
+              this.RequestGroupList();
+              if (!this.SafeToWalkFast)
+                Thread.Sleep(4000);
+            }
+          }
+        }
+        if (this.Tab.buygems.Checked && this.OutOfGems())
+        {
+          if (!this.InventoryIsFull())
+          {
+            if (this.MapInfo.Number == 505)
+              this.WalkToExact(22, 18);
+            if (this.MapInfo.Number == 424)
+            {
+              Npc npcByName = this.FindNpcByName<Npc>("Braz");
+              if (npcByName != null)
+              {
+                this.DialogueRespond(new uint?(npcByName.ID), "Braz");
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 6);
+                int num = this.OpenSlotsCount();
+                for (int index = 0; index < num; ++index)
+                {
+                  if (this.Tab.beryl.Checked)
+                    this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 1);
+                  else if (this.Tab.coral.Checked)
+                    this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 2);
+                  else if (this.Tab.ruby.Checked)
+                    this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 3);
+                  Thread.Sleep(50);
+                }
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 14);
               }
             }
           }
         }
-        catch
+        else if (this.Tab.buygems.Checked && this.MapInfo.Number == 424)
+          this.WalkToExact(12, 6);
+        else if (this.Tab.buygems.Checked && this.MapInfo.Number == 505 && (this.ServerLocation.X != 24 || this.ServerLocation.Y != 17))
         {
+          this.WalkToExact(24, 17);
+          this.Tab.improveskill.Text = "Gem Polishing";
+          this.Tab.impskillbutton.Text = "Stop";
         }
-label_92:
-        Thread.Sleep(200);
-      }
-    }
-
-    private void BotLoop()
-    {
-      while (BotThreadRunning)
-      {
-        try
+        else if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Gem Polishing"))
         {
-          Thread.Sleep(10);
-          if (!this.pause)
+          this.impingskill = true;
+          Dictionary<string, DateTime> gemPolish1 = this.GemPolish;
+          int num = this.ServerLocation.X;
+          string str1 = num.ToString();
+          num = this.ServerLocation.Y;
+          string str2 = num.ToString();
+          string key1 = str1 + "," + str2;
+          if (!gemPolish1.ContainsKey(key1) && this.HasSpell("Gem Polishing"))
           {
-            if (this.Statistics.CurrentHP != 0U)
+            this.CastSpell("Gem Polishing");
+            Thread.Sleep(1000);
+          }
+          else
+          {
+            DateTime utcNow = DateTime.UtcNow;
+            ref DateTime local1 = ref utcNow;
+            Dictionary<string, DateTime> gemPolish2 = this.GemPolish;
+            num = this.ServerLocation.X;
+            string str3 = num.ToString();
+            num = this.ServerLocation.Y;
+            string str4 = num.ToString();
+            string key2 = str3 + "," + str4;
+            DateTime dateTime1 = gemPolish2[key2];
+            TimeSpan timeSpan = local1.Subtract(dateTime1);
+            if (timeSpan.TotalSeconds < 57.0)
             {
-              if (!this.IsSkulled)
+              this.DropGold(this.ServerLocation.X, this.ServerLocation.Y, 1U);
+              while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
               {
-                if (this.waitingforlabor && this.whisperagain != DateTime.MinValue && DateTime.UtcNow.Subtract(this.whisperagain).TotalSeconds >= 1.0)
+                Thread.Sleep(200);
+                if (!(this.Currentnpctext != "You don't have any gems that may be polished any more than they are.") || !(this.Currentnpctext != "You've done all you can for these four Temuairan days.") || this.Currentnpctext.Contains("Alone"))
                 {
-                  if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
-                    this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
-                  this.whisperagain = DateTime.MinValue;
-                }
-                if (this.Tab.clickladder.Checked)
-                {
-                  foreach (Npc nearbyNormalMonster in this.NearbyNormalMonsters())
+                  if (this.Currentnpctext == "You don't have any gems that may be polished any more than they are.")
                   {
-                    if (nearbyNormalMonster != null && nearbyNormalMonster.Image == 362 && nearbyNormalMonster.DistanceFrom(this.ServerLocation) < 5)
-                    {
-                      this.ClickEntity(nearbyNormalMonster.ID);
-                      this.SendMessage("click");
-                      break;
-                    }
-                  }
-                }
-                if (this.Tab.vassistonthischar)
-                {
-                  if (this.Currentnpctext.Contains("I assist this work of Magic."))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 39, (byte) 0, (byte) 100, (byte) 1, (byte) 1);
-                  if (this.Currentnpctext.Contains("I embue the enchantment with my essence of Magic."))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 39, (byte) 0, (byte) 166, (byte) 1, (byte) 1);
-                  if (this.Currentnpctext.Contains("I assist the Tailoring"))
-                    this.PopupOption3();
-                  if (this.Currentnpctext.Contains("I assist the preparation"))
-                    this.PopupOption3();
-                  else if (this.Currentnpctext.Contains(" is attempting to advance degree in "))
-                    this.PopupOption2();
-                  else if (this.Currentnpctext.Contains("is collecting fior"))
-                    this.PopupOption3();
-                  else if (this.Currentnpctext.Contains("is desecrating an item of Cail or Deoch"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 252, (byte) 0, (byte) 55, (byte) 1, (byte) 2);
-                  else if (this.Currentnpctext.Contains("A curse on you for bothering me!"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 136, (byte) 1, (byte) 2);
-                  if (this.Currentnpctext.Contains("Curse the Disrepectful Hubae"))
-                    this.PopupOption2();
-                  if (this.Currentnpctext.Contains("is attempting wizardry research"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 59, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
-                  if (this.Currentnpctext.Contains("is attempting to higgle"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 125, (byte) 0, (byte) 70, (byte) 1, (byte) 2);
-                }
-                if (!this.autowalkon && this.Tab.vlaborbutton && this.Tab.laborname.Text != string.Empty)
-                {
-                  Npc npcByName = this.FindNpcByName<Npc>("Cecil");
-                  if (this.MapInfo.Number == 135)
-                    npcByName = this.FindNpcByName<Npc>("Cassidy");
-                  else if (this.MapInfo.Number == 167)
-                    npcByName = this.FindNpcByName<Npc>("Lamont");
-                  else if (this.MapInfo.Number == 422)
-                    npcByName = this.FindNpcByName<Npc>("Antonio");
-                  else if (this.MapInfo.Number == 148)
-                    npcByName = this.FindNpcByName<Npc>("Jilt");
-                  else if (this.MapInfo.Number == 432)
-                    npcByName = this.FindNpcByName<Npc>("Argus");
-                  if (npcByName != null && !this.banker && npcByName.IsOnScreen)
-                  {
-                    this.banker = true;
-                    this.DialogueRespond(new uint?(npcByName.ID), "Labor");
-                    if (!this.SafeToWalkFast)
-                      Thread.Sleep(2000);
-                  }
-                  if (this.Currentnpctext.Contains("You have no time"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 10);
-                  if (this.Currentnpctext.Contains("Hello.") && this.Currentnpctext.Contains("((laborfix))"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 11, (byte) 1, (byte) 1);
-                  if (this.Currentnpctext.Contains("This will reset your labor"))
-                  {
-                    if (this.Tab.laborwhisper.Checked)
-                      this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
-                    this.Tab.laborbutton.Text = "Start";
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 75);
-                    this.laborcount = 1;
-                  }
-                  if (this.Currentnpctext.Contains("You have already reset your labor."))
-                  {
-                    if (this.Tab.laborwhisper.Checked)
-                      this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
-                    this.SendMessage("Out of labor.");
-                    foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                    {
-                      if (client != null && client.Tab.requestlabornametext.Text == this.Name)
-                        client.Tab.requestlabornametext.Text = string.Empty;
-                    }
-                    this.Tab.laborbutton.Text = "Start";
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 78);
-                    do
-                    {
-                      Thread.Sleep(200);
-                    }
-                    while (this.Currentpopuptype != 10);
-                    if (this.Tab.laborlogoff.Checked)
-                      this.LogOff();
-                  }
-                  if (this.Currentnpctext.Contains("((labor fix))"))
-                  {
-                    if ((Decimal) this.laborcount < this.Tab.labordays.Value)
-                    {
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 17, (byte) 1, (byte) 2);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.Currentpopuptype != 4);
-                      if (this.Currentpopuptype == 4)
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 25, (byte) 2, this.Tab.laborname.Text);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.polishsuccess == 0);
-                      if (this.polishsuccess == 2)
-                      {
-                        if (this.Tab.laborwhisper.Checked)
-                          this.Whisper(this.Tab.laborname.Text, this.Tab.laborwhispertext.Text);
-                        this.Tab.laborbutton.Text = "Start";
-                      }
-                      if (this.polishsuccess == 3)
-                        this.Tab.laborbutton.Text = "Start";
-                      this.polishsuccess = 0;
-                      ++this.laborcount;
-                    }
-                    else
-                    {
-                      this.SaveTimedStuff(32);
-                      this.SendMessage("Labor time saved");
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 55, (byte) 0, (byte) 17, (byte) 1, (byte) 3);
-                      Thread.Sleep(1000);
-                    }
-                  }
-                }
-                if (this.Tab.vpraybutton && this.Tab.praytemple.Checked)
-                {
-                  this.impingskill = true;
-                  Npc npcByName = this.FindNpcByName<Npc>("Meaveen");
-                  if (this.MapInfo.Number == 3015)
-                    npcByName = this.FindNpcByName<Npc>("Audny");
-                  else if (this.MapInfo.Number == 3017)
-                    npcByName = this.FindNpcByName<Npc>("Vivianne");
-                  else if (this.MapInfo.Number == 3019)
-                    npcByName = this.FindNpcByName<Npc>("Erika");
-                  else if (this.MapInfo.Number == 3013)
-                    npcByName = this.FindNpcByName<Npc>("Camille");
-                  else if (this.MapInfo.Number == 3009)
-                    npcByName = this.FindNpcByName<Npc>("Evania");
-                  else if (this.MapInfo.Number == 3011)
-                    npcByName = this.FindNpcByName<Npc>("Gabriela");
-                  else if (this.MapInfo.Number == 3018)
-                    npcByName = this.FindNpcByName<Npc>("Greim");
-                  if (npcByName != null && !this.templeassistant && npcByName.IsOnScreen)
-                  {
-                    this.templeassistant = true;
-                    this.DialogueRespond(new uint?(npcByName.ID), "Prayer");
-                  }
-                  if (this.Currentnpctext.StartsWith("You have lost touch"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
-                  if (this.Currentnpctext.Contains("Alone"))
-                  {
-                    if (this.Tab.useprayassistant.Checked && this.Tab.prayerassistant.Text != string.Empty)
-                    {
-                      this.assisted = false;
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 1);
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 96, (byte) 2, this.Tab.prayerassistant.Text);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (!this.assisted);
-                      if (this.Currentnpctext.Contains("Praise Another"))
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
-                      if (this.Currentnpctext.StartsWith("You have lost touch"))
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.polishsuccess == 0);
-                      Thread.Sleep(200);
-                      this.polishsuccess = 0;
-                    }
-                    else
-                    {
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (!this.Currentnpctext.Contains("Praise Another"));
-                      if (this.Currentnpctext.Contains("Praise Another"))
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
-                      if (this.Currentnpctext.StartsWith("You have lost touch"))
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.polishsuccess == 0);
-                      Thread.Sleep(200);
-                      this.polishsuccess = 0;
-                    }
-                  }
-                }
-                if (this.Tab.vpraybutton && this.Tab.praynecklace.Checked)
-                {
-                  this.impingskill = true;
-                  if (this.Tab.prayhere.Checked)
-                  {
-                    if (this.HasSpell(this.PrayerSpell) && !this.MapInfo.Tiles[this.ServerLocation.X, this.ServerLocation.Y].HasPrayerSpell)
-                      this.CastSpell(this.PrayerSpell);
-                    if (this.MapInfo.Tiles[this.ServerLocation.X, this.ServerLocation.Y].SafeToDropNecklace)
-                    {
-                      if (this.HasItem(this.PrayerNeck))
-                        this.DropItems(this.PrayerNeck);
-                      else if (!this.HasItem(this.PrayerNeck))
-                        this.Pickup(this.ServerLocation.X, this.ServerLocation.Y);
-                    }
-                  }
-                  else if (this.Tab.prayxy.Checked && this.Tab.prayxytext.Text.Contains(","))
-                  {
-                    string[] strArray = this.Tab.prayxytext.Text.Split(',');
-                    int x = int.Parse(strArray[0]);
-                    int y = int.Parse(strArray[1]);
-                    if (this.ServerLocation.WithinSquare(new Location(x, y), 2))
-                    {
-                      if (this.HasItem(this.PrayerNeck))
-                      {
-                        foreach (Item obj in this.Inventory)
-                        {
-                          if (obj != null && obj.Name == this.PrayerNeck)
-                          {
-                            this.Drop(x, y, obj.InventorySlot, 1);
-                            break;
-                          }
-                        }
-                      }
-                      else if (!this.HasItem(this.PrayerNeck))
-                        this.Pickup(x, y);
-                    }
-                  }
-                  if (this.Currentnpctext.StartsWith("You have lost touch"))
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 245, (byte) 0, (byte) 0);
-                  if (this.Currentnpctext.Contains("Alone"))
-                  {
-                    if (this.Tab.useprayassistant.Checked && this.Tab.prayerassistant.Text != string.Empty)
-                    {
-                      this.assisted = false;
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 1);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.Currentpopuptype != 4);
-                      if (this.Currentpopuptype == 4)
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 96, (byte) 2, this.Tab.prayerassistant.Text);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (!this.assisted);
-                      if (this.Currentnpctext.Contains("Praise Another"))
-                      {
-                        if (this.prayscript == (byte) 30)
-                          this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 252, (byte) 1, (byte) 4);
-                        else
-                          this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
-                      }
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.polishsuccess == 0);
-                      Thread.Sleep(200);
-                      this.polishsuccess = 0;
-                    }
-                    else
-                    {
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 92, (byte) 1, (byte) 2);
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (!this.Currentnpctext.Contains("Praise Another"));
-                      if (this.Currentnpctext.Contains("Praise Another"))
-                      {
-                        if (this.prayscript == (byte) 30)
-                          this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 252, (byte) 1, (byte) 4);
-                        else
-                          this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 2, (byte) 30, (byte) 0, (byte) 248, (byte) 1, (byte) 4);
-                      }
-                      do
-                      {
-                        Thread.Sleep(200);
-                      }
-                      while (this.polishsuccess == 0);
-                      Thread.Sleep(200);
-                      this.polishsuccess = 0;
-                    }
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Tailoring (cowl)"))
-                {
-                  this.impingskill = true;
-                  if (!this.Tab.ExternalChat.Visible)
-                    this.Tab.BeginInvoke((Action) (() =>
-                    {
-                      this.Tab.ExternalChat.Text = this.Name + "'s Chat";
-                      this.Tab.ExternalChat.Visible = true;
-                      Rect rectangle = new Rect();
-                      if (!User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
-                        return;
-                      this.Tab.ExternalChat.Location = new System.Drawing.Point(rectangle.left + 85, rectangle.top + 360);
-                    }));
-                  Npc npcByName = this.FindNpcByName<Npc>("Brody");
-                  if (npcByName != null && npcByName.IsOnScreen)
-                  {
-                    if (!this.HasItem("Cowl"))
-                    {
-                      while (!this.InventoryIsFull())
-                      {
-                        if (this.Statistics.Gold < 500U)
-                        {
-                          this.SendMessage("Not enough gold!", "red");
-                          this.Tab.impskillbutton.Text = "Start";
-                        }
-                        if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                        {
-                          this.DialogueRespond(new uint?(npcByName.ID), "Buy Cowl");
-                          if (this.tooheavy)
-                          {
-                            this.tooheavy = false;
-                            goto label_498;
-                          }
-                          else if (this.distracted)
-                          {
-                            this.distracted = false;
-                            goto label_498;
-                          }
-                          else
-                          {
-                            Thread.Sleep(200);
-                            this.tailornoarmors = false;
-                          }
-                        }
-                        else
-                          goto label_498;
-                      }
-                      this.tailornoarmors = false;
-                    }
-                    else if (this.tailornoarmors)
-                    {
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 166);
-                      this.DropItems("Cowl");
-                      this.tailornoarmors = false;
-                      Thread.Sleep(1000);
-                      goto label_498;
-                    }
-                    else
-                    {
-                      this.DialogueRespond(new uint?(npcByName.ID), "Male Tailoring");
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
-                      if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                      {
-                        this.assisted = false;
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
-                        int num = 0;
-                        while (!this.assisted)
-                        {
-                          ++num;
-                          if (num <= 20)
-                          {
-                            if (this.distracted)
-                            {
-                              this.distracted = false;
-                              goto label_498;
-                            }
-                            else if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                              Thread.Sleep(200);
-                            else
-                              goto label_498;
-                          }
-                          else
-                            goto label_498;
-                        }
-                        Thread.Sleep(200);
-                      }
-                      else
-                      {
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
-                        Thread.Sleep(200);
-                      }
-                      this.RequestGroupList();
-                      if (!this.SafeToWalkFast)
-                        Thread.Sleep(4000);
-                    }
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Tailoring"))
-                {
-                  this.impingskill = true;
-                  if (!this.Tab.ExternalChat.Visible)
-                    this.Tab.BeginInvoke((Action) (() =>
-                    {
-                      this.Tab.ExternalChat.Text = this.Name + "'s Chat";
-                      this.Tab.ExternalChat.Visible = true;
-                      Rect rectangle = new Rect();
-                      if (!User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
-                        return;
-                      this.Tab.ExternalChat.Location = new System.Drawing.Point(rectangle.left + 85, rectangle.top + 360);
-                    }));
-                  Npc npc = (Npc) null;
-                  if (this.MapInfo.Number == 423)
-                    npc = this.FindNpcByName<Npc>("Huberto");
-                  else if (this.MapInfo.Number == 130)
-                    npc = this.FindNpcByName<Npc>("Brody");
-                  else if (this.MapInfo.Number == 183)
-                    npc = this.FindNpcByName<Npc>("Arnljot");
-                  else if (this.MapInfo.Number == 164)
-                    npc = this.FindNpcByName<Npc>("Hali");
-                  if (npc != null && npc.IsOnScreen)
-                  {
-                    if (!this.HasArmors())
-                    {
-                      this.Tab.impskillbutton.Text = "Start";
-                      this.SendMessage("Get more armors");
-                    }
-                    else if (this.tailornoarmors)
-                    {
-                      this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 166);
-                      this.DropArmors();
-                      this.tailornoarmors = false;
-                      Thread.Sleep(1000);
-                      goto label_498;
-                    }
-                    else
-                    {
-                      if (this.HasMArmors())
-                      {
-                        this.DialogueRespond(new uint?(npc.ID), "Male Tailoring");
-                        this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
-                      }
-                      else if (this.HasFArmors())
-                      {
-                        this.DialogueRespond(npc.ID, (byte) 5, (byte) 64);
-                        this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 30, (byte) 1, (byte) 1);
-                      }
-                      if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                      {
-                        this.assisted = false;
-                        if (this.HasMArmors())
-                        {
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
-                        }
-                        else if (this.HasFArmors())
-                        {
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 38, (byte) 1, (byte) 1);
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 43, (byte) 2, this.Tab.skillassistant.Text);
-                        }
-                        int num = 0;
-                        while (!this.assisted)
-                        {
-                          ++num;
-                          if (num <= 20)
-                          {
-                            if (this.distracted)
-                            {
-                              this.distracted = false;
-                              goto label_498;
-                            }
-                            else if (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                              Thread.Sleep(200);
-                            else
-                              goto label_498;
-                          }
-                          else
-                            goto label_498;
-                        }
-                        Thread.Sleep(200);
-                      }
-                      else
-                      {
-                        if (this.HasMArmors())
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 63, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
-                        else if (this.HasFArmors())
-                          this.PopupRespond(new uint?(npc.ID), (byte) 1, (byte) 64, (byte) 0, (byte) 38, (byte) 1, (byte) 2);
-                        Thread.Sleep(200);
-                      }
-                      this.RequestGroupList();
-                      if (!this.SafeToWalkFast)
-                        Thread.Sleep(4000);
-                    }
-                  }
-                }
-                if (this.Tab.buygems.Checked && this.OutOfGems())
-                {
-                  if (!this.InventoryIsFull())
-                  {
-                    if (this.MapInfo.Number == 505)
-                      this.WalkToExact(22, 18);
-                    if (this.MapInfo.Number == 424)
-                    {
-                      Npc npcByName = this.FindNpcByName<Npc>("Braz");
-                      if (npcByName != null)
-                      {
-                        this.DialogueRespond(new uint?(npcByName.ID), "Braz");
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 6);
-                        int num = this.OpenSlotsCount();
-                        for (int index = 0; index < num; ++index)
-                        {
-                          if (this.Tab.beryl.Checked)
-                            this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 1);
-                          else if (this.Tab.coral.Checked)
-                            this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 2);
-                          else if (this.Tab.ruby.Checked)
-                            this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 15, (byte) 1, (byte) 3);
-                          Thread.Sleep(50);
-                        }
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 0, (byte) 231, (byte) 0, (byte) 14);
-                      }
-                    }
-                  }
-                }
-                else if (this.Tab.buygems.Checked && this.MapInfo.Number == 424)
-                  this.WalkToExact(12, 6);
-                else if (this.Tab.buygems.Checked && this.MapInfo.Number == 505 && (this.ServerLocation.X != 24 || this.ServerLocation.Y != 17))
-                {
-                  this.WalkToExact(24, 17);
-                  this.Tab.improveskill.Text = "Gem Polishing";
-                  this.Tab.impskillbutton.Text = "Stop";
-                }
-                else if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Gem Polishing"))
-                {
-                  this.impingskill = true;
-                  Dictionary<string, DateTime> gemPolish1 = this.GemPolish;
-                  int num = this.ServerLocation.X;
-                  string str1 = num.ToString();
-                  num = this.ServerLocation.Y;
-                  string str2 = num.ToString();
-                  string key1 = str1 + "," + str2;
-                  if (!gemPolish1.ContainsKey(key1) && this.HasSpell("Gem Polishing"))
-                  {
-                    this.CastSpell("Gem Polishing");
-                    Thread.Sleep(1000);
-                  }
-                  else
-                  {
-                    DateTime utcNow = DateTime.UtcNow;
-                    ref DateTime local1 = ref utcNow;
-                    Dictionary<string, DateTime> gemPolish2 = this.GemPolish;
-                    num = this.ServerLocation.X;
-                    string str3 = num.ToString();
-                    num = this.ServerLocation.Y;
-                    string str4 = num.ToString();
-                    string key2 = str3 + "," + str4;
-                    DateTime dateTime1 = gemPolish2[key2];
-                    TimeSpan timeSpan = local1.Subtract(dateTime1);
-                    if (timeSpan.TotalSeconds < 57.0)
-                    {
-                      this.DropGold(this.ServerLocation.X, this.ServerLocation.Y, 1U);
-                      while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                      {
-                        Thread.Sleep(200);
-                        if (!(this.Currentnpctext != "You don't have any gems that may be polished any more than they are.") || !(this.Currentnpctext != "You've done all you can for these four Temuairan days.") || this.Currentnpctext.Contains("Alone"))
-                        {
-                          if (this.Currentnpctext == "You don't have any gems that may be polished any more than they are.")
-                          {
-                            this.SendMessage("All of your gems are polished!");
-                            this.Tab.impskillbutton.Text = "Start";
-                            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 34);
-                            break;
-                          }
-                          if (this.Currentnpctext == "You've done all you can for these four Temuairan days.")
-                          {
-                            if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
-                              this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
-                            else
-                              this.SendMessage("You are out of labor!");
-                            this.waitingforlabor = true;
-                            this.Tab.impskillbutton.Text = "Start";
-                            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 13);
-                            break;
-                          }
-                          if (this.Currentnpctext.Contains("Alone"))
-                          {
-                            if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                            {
-                              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 39, (byte) 1, (byte) 1);
-                              while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                              {
-                                Thread.Sleep(200);
-                                if (this.Currentpopuptype == 4 || this.Currentpopuptype == 10)
-                                {
-                                  if (this.Currentpopuptype == 10)
-                                  {
-                                    if (this.outoflabor)
-                                    {
-                                      if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
-                                        this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
-                                      else
-                                        this.SendMessage("You are out of labor!");
-                                      this.waitingforlabor = true;
-                                      this.Tab.impskillbutton.Text = "Start";
-                                      break;
-                                    }
-                                    this.SendMessage("All of your gems are polished!");
-                                    this.Tab.impskillbutton.Text = "Start";
-                                    break;
-                                  }
-                                  if (this.Currentpopuptype == 4)
-                                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 44, (byte) 2, this.Tab.skillassistant.Text);
-                                  while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                                  {
-                                    Thread.Sleep(200);
-                                    if (this.Currentpopuptype == 10)
-                                    {
-                                      Thread.Sleep(200);
-                                      goto label_295;
-                                    }
-                                  }
-                                  break;
-                                }
-                              }
-                              break;
-                            }
-                            if (!this.Tab.useskillassistant.Checked)
-                            {
-                              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 39, (byte) 1, (byte) 2);
-                              while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
-                              {
-                                Thread.Sleep(200);
-                                if (this.Currentpopuptype == 10 || this.polishsuccess != 0)
-                                {
-                                  Thread.Sleep(200);
-                                  if (this.polishsuccess == 1)
-                                  {
-                                    do
-                                    {
-                                      Thread.Sleep(200);
-                                    }
-                                    while (this.dropitemslot == 0);
-                                    this.Drop(this.ServerLocation.X, this.ServerLocation.Y, this.dropitemslot, 1);
-                                    this.dropitemslot = 0;
-                                  }
-                                  this.polishsuccess = 0;
-                                  goto label_295;
-                                }
-                              }
-                              break;
-                            }
-                            goto label_295;
-                          }
-                          else
-                            goto label_295;
-                        }
-                      }
-                      goto label_498;
-                    }
-                    else
-                    {
-                      utcNow = DateTime.UtcNow;
-                      ref DateTime local2 = ref utcNow;
-                      Dictionary<string, DateTime> gemPolish3 = this.GemPolish;
-                      num = this.ServerLocation.X;
-                      string str5 = num.ToString();
-                      num = this.ServerLocation.Y;
-                      string str6 = num.ToString();
-                      string key3 = str5 + "," + str6;
-                      DateTime dateTime2 = gemPolish3[key3];
-                      timeSpan = local2.Subtract(dateTime2);
-                      if (timeSpan.TotalSeconds > 60.0)
-                      {
-                        this.CastSpell("Gem Polishing");
-                        Thread.Sleep(1000);
-                      }
-                    }
-                  }
-                }
-label_295:
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Contains("Blade Smith"))
-                {
-                  this.impingskill = true;
-                  if (this.bladesmithnoswords)
-                  {
-                    this.DropItems("Dirk");
-                    this.DropItems("Eppe");
-                    this.SendMessage("Out of dirk/eppe");
+                    this.SendMessage("All of your gems are polished!");
                     this.Tab.impskillbutton.Text = "Start";
-                    this.bladesmithnoswords = false;
+                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 34);
+                    break;
                   }
-                  else if (!this.waitingforlabor && (this.HasItem("Dirk") || this.HasItem("Eppe")) && this.MapInfo.Number == 420)
-                  {
-                    Npc npcByName = this.FindNpcByName<Npc>("Marcelo");
-                    if (npcByName != null && npcByName.IsOnScreen)
-                    {
-                      this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 61);
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 74, (byte) 1, (byte) 1);
-                      if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                      {
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 82, (byte) 1, (byte) 1);
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 87, (byte) 2, this.Tab.skillassistant.Text);
-                      }
-                      else
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 82, (byte) 1, (byte) 2);
-                      Thread.Sleep(1000);
-                    }
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Contains("Herbalist"))
-                {
-                  this.impingskill = true;
-                  if (this.has25hydele)
-                  {
-                    string str = string.Empty;
-                    foreach (Item obj in this.Inventory)
-                    {
-                      if (obj != null && obj.InventorySlot == 1)
-                        str = obj.Name;
-                    }
-                    if (this.HasSkill("Herbal Lore"))
-                    {
-                      while (!this.HasItem("Hydele deum"))
-                      {
-                        this.SendMessage("Identifying...", (byte) 18);
-                        if (this.CanSkill("Herbal Lore"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.InventorySlot == 1 && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 54)
-                            {
-                              this.blocklores = true;
-                              if (this.CanSkill("Herbal Lore"))
-                                this.UseSkill("Herbal Lore");
-                              do
-                              {
-                                Thread.Sleep(200);
-                              }
-                              while (this.blocklores);
-                              break;
-                            }
-                            if (obj != null && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 54)
-                            {
-                              this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                              Thread.Sleep(350);
-                              break;
-                            }
-                          }
-                        }
-                        Thread.Sleep(200);
-                      }
-                      while (this.HasItem("Hydele deum"))
-                      {
-                        if (this.HasItem("Hydele deum"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.Name == "Hydele deum")
-                            {
-                              this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
-                              break;
-                            }
-                          }
-                        }
-                      }
-                      if (str != string.Empty)
-                      {
-                        foreach (Item obj in this.Inventory)
-                        {
-                          if (obj != null && obj.Name == str)
-                          {
-                            this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                            Thread.Sleep(350);
-                          }
-                        }
-                      }
-                      this.SendMessage("", (byte) 18);
-                      this.has25hydele = false;
-                    }
-                  }
-                  else if (this.has25betony)
-                  {
-                    string str = string.Empty;
-                    foreach (Item obj in this.Inventory)
-                    {
-                      if (obj != null && obj.InventorySlot == 1)
-                        str = obj.Name;
-                    }
-                    if (this.HasSkill("Herbal Lore"))
-                    {
-                      while (!this.HasItem("Betony deum"))
-                      {
-                        this.SendMessage("Identifying...", (byte) 18);
-                        if (this.CanSkill("Herbal Lore"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.InventorySlot == 1 && obj.Name == "Vanilla Potion")
-                            {
-                              this.blocklores = true;
-                              if (this.CanSkill("Herbal Lore"))
-                                this.UseSkill("Herbal Lore");
-                              do
-                              {
-                                Thread.Sleep(200);
-                              }
-                              while (this.blocklores);
-                              break;
-                            }
-                            if (obj != null && obj.Name == "Vanilla Potion")
-                            {
-                              this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                              Thread.Sleep(350);
-                              break;
-                            }
-                          }
-                        }
-                        Thread.Sleep(200);
-                      }
-                      while (this.HasItem("Betony deum"))
-                      {
-                        if (this.HasItem("Betony deum"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.Name == "Betony deum")
-                            {
-                              this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
-                              break;
-                            }
-                          }
-                        }
-                      }
-                      if (str != string.Empty)
-                      {
-                        foreach (Item obj in this.Inventory)
-                        {
-                          if (obj != null && obj.Name == str)
-                          {
-                            this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                            Thread.Sleep(350);
-                          }
-                        }
-                      }
-                      this.SendMessage("", (byte) 18);
-                      this.has25betony = false;
-                    }
-                  }
-                  else if (this.has25personaca)
-                  {
-                    string str = string.Empty;
-                    foreach (Item obj in this.Inventory)
-                    {
-                      if (obj != null && obj.InventorySlot == 1)
-                        str = obj.Name;
-                    }
-                    if (this.HasSkill("Herbal Lore"))
-                    {
-                      while (!this.HasItem("Personaca deum"))
-                      {
-                        this.SendMessage("Identifying...", (byte) 18);
-                        if (this.CanSkill("Herbal Lore"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.InventorySlot == 1 && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 55)
-                            {
-                              this.blocklores = true;
-                              if (this.CanSkill("Herbal Lore"))
-                                this.UseSkill("Herbal Lore");
-                              do
-                              {
-                                Thread.Sleep(200);
-                              }
-                              while (this.blocklores);
-                              break;
-                            }
-                            if (obj != null && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 55)
-                            {
-                              this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                              Thread.Sleep(350);
-                              break;
-                            }
-                          }
-                        }
-                        Thread.Sleep(200);
-                      }
-                      while (this.HasItem("Personaca deum"))
-                      {
-                        if (this.HasItem("Personaca deum"))
-                        {
-                          foreach (Item obj in this.Inventory)
-                          {
-                            if (obj != null && obj.Name == "Personaca deum")
-                            {
-                              this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
-                              break;
-                            }
-                          }
-                        }
-                      }
-                      if (str != string.Empty)
-                      {
-                        foreach (Item obj in this.Inventory)
-                        {
-                          if (obj != null && obj.Name == str)
-                          {
-                            this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
-                            Thread.Sleep(350);
-                          }
-                        }
-                      }
-                      this.SendMessage("", (byte) 18);
-                      this.has25personaca = false;
-                    }
-                  }
-                  else
-                  {
-                    if (this.MapInfo.Number == 622 && this.ClosestHerbNode() != null)
-                    {
-                      if (this.herbnodewaittime != DateTime.MinValue && DateTime.UtcNow.Subtract(this.herbnodewaittime).TotalSeconds > 3.0)
-                      {
-                        Dictionary<string, HerbNode> betonyNodes1 = Server.BetonyNodes;
-                        int num = this.ClosestHerbNode().X;
-                        string str7 = num.ToString();
-                        num = this.ClosestHerbNode().Y;
-                        string str8 = num.ToString();
-                        string key4 = str7 + "," + str8 + ",622";
-                        if (betonyNodes1.ContainsKey(key4))
-                        {
-                          Dictionary<string, HerbNode> betonyNodes2 = Server.BetonyNodes;
-                          num = this.ClosestHerbNode().X;
-                          string str9 = num.ToString();
-                          num = this.ClosestHerbNode().Y;
-                          string str10 = num.ToString();
-                          string key5 = str9 + "," + str10 + ",622";
-                          betonyNodes2[key5].Active = false;
-                        }
-                        Dictionary<string, HerbNode> personacaNodes1 = Server.PersonacaNodes;
-                        num = this.ClosestHerbNode().X;
-                        string str11 = num.ToString();
-                        num = this.ClosestHerbNode().Y;
-                        string str12 = num.ToString();
-                        string key6 = str11 + "," + str12 + ",622";
-                        if (personacaNodes1.ContainsKey(key6))
-                        {
-                          Dictionary<string, HerbNode> personacaNodes2 = Server.PersonacaNodes;
-                          num = this.ClosestHerbNode().X;
-                          string str13 = num.ToString();
-                          num = this.ClosestHerbNode().Y;
-                          string str14 = num.ToString();
-                          string key7 = str13 + "," + str14 + ",622";
-                          personacaNodes2[key7].Active = false;
-                        }
-                        Dictionary<string, HerbNode> hydeleNodes1 = Server.HydeleNodes;
-                        num = this.ClosestHerbNode().X;
-                        string str15 = num.ToString();
-                        num = this.ClosestHerbNode().Y;
-                        string str16 = num.ToString();
-                        string key8 = str15 + "," + str16 + ",622";
-                        if (hydeleNodes1.ContainsKey(key8))
-                        {
-                          Dictionary<string, HerbNode> hydeleNodes2 = Server.HydeleNodes;
-                          num = this.ClosestHerbNode().X;
-                          string str17 = num.ToString();
-                          num = this.ClosestHerbNode().Y;
-                          string str18 = num.ToString();
-                          string key9 = str17 + "," + str18 + ",622";
-                          hydeleNodes2[key9].Active = false;
-                        }
-                        this.herbnodewaittime = DateTime.MinValue;
-                      }
-                      else if (this.herbnodewaittime == DateTime.MinValue)
-                      {
-                        if (this.ServerLocation.X == this.ClosestHerbNode().X && this.ServerLocation.Y == this.ClosestHerbNode().Y)
-                        {
-                          this.Refresh();
-                          this.herbnodewaittime = DateTime.UtcNow;
-                        }
-                        else
-                          this.WalkToExact(this.ClosestHerbNode().X, this.ClosestHerbNode().Y);
-                      }
-                    }
-                    if (this.MapInfo.Number == 622)
-                      this.ClosestHerbNode();
-                    if (this.Currentnpctext.Contains("Alone") && this.Currentnpctext.Contains("Prepare"))
-                    {
-                      this.herbnodewaittime = DateTime.MinValue;
-                      if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                      {
-                        uint currentnpcpopupId = this.CurrentnpcpopupID;
-                        this.assisted = false;
-                        this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, (byte) 40, (byte) 0, (byte) 84, (byte) 1, (byte) 1);
-                        this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, (byte) 40, (byte) 0, (byte) 92, (byte) 2, this.Tab.skillassistant.Text);
-                        while (!this.assisted)
-                        {
-                          Thread.Sleep(200);
-                          if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
-                            break;
-                        }
-                        this.RequestGroupList();
-                      }
-                      else
-                      {
-                        this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 40, (byte) 0, (byte) 84, (byte) 1, (byte) 2);
-                        do
-                        {
-                          Thread.Sleep(200);
-                        }
-                        while (this.Currentpopuptype != 10);
-                        this.RequestGroupList();
-                      }
-                    }
-                    if (this.Currentnpctext.Contains(" cannot prepare more "))
-                    {
-                      this.herbnodewaittime = DateTime.MinValue;
-                      if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
-                        this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
-                      else
-                        this.SendMessage("You are out of labor!");
-                      this.waitingforlabor = true;
-                      this.outoflabor = true;
-                      this.Tab.impskillbutton.Text = "Start";
-                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 40, (byte) 0, (byte) 11);
-                    }
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Wizardry Researcher"))
-                {
-                  this.impingskill = true;
-                  if (this.Currentnpctext.StartsWith("Do you need help before"))
-                  {
-                    this.wizresearchID = this.CurrentnpcpopupID;
-                    this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 20, (byte) 1, (byte) 1);
-                    this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 26, (byte) 1, (byte) 1);
-                    if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
-                    {
-                      this.assisted = false;
-                      this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 57, (byte) 1, (byte) 1);
-                      this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 62, (byte) 2, this.Tab.skillassistant.Text);
-                      while (!this.assisted)
-                      {
-                        Thread.Sleep(200);
-                        if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
-                          break;
-                      }
-                      this.assisted = false;
-                      this.RequestGroupList();
-                    }
-                    else
-                    {
-                      this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 57, (byte) 1, (byte) 2);
-                      while (this.Currentpopuptype != 10)
-                        Thread.Sleep(200);
-                      this.RequestGroupList();
-                    }
-                  }
-                  else if (this.Currentnpctext.StartsWith("You have researched already"))
+                  if (this.Currentnpctext == "You've done all you can for these four Temuairan days.")
                   {
                     if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
                       this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
                     else
                       this.SendMessage("You are out of labor!");
                     this.waitingforlabor = true;
-                    this.outoflabor = true;
-                    Thread.Sleep(200);
-                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 59, (byte) 0, (byte) 13);
                     this.Tab.impskillbutton.Text = "Start";
+                    this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 13);
+                    break;
                   }
-                  else if (!this.outoflabor && !this.assisted)
+                  if (this.Currentnpctext.Contains("Alone"))
                   {
-                    this.Refresh();
-                    Thread.Sleep(1000);
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Elementalist"))
-                {
-                  this.impingskill = true;
-                  if (this.Currentnpctext.Contains("Do not touch the nadurra"))
-                  {
-                    byte script = 50;
-                    if (this.Currentnpctext.Contains("athar"))
-                      script = (byte) 46;
-                    else if (this.Currentnpctext.Contains("creag"))
-                      script = (byte) 48;
-                    else if (this.Currentnpctext.Contains("srad"))
-                      script = (byte) 44;
-                    uint currentnpcpopupId = this.CurrentnpcpopupID;
                     if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
                     {
-                      this.assisted = false;
-                      this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 59, (byte) 1, (byte) 1);
-                      this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 67, (byte) 2, this.Tab.skillassistant.Text);
-                      while (!this.assisted)
+                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 39, (byte) 1, (byte) 1);
+                      while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
                       {
                         Thread.Sleep(200);
-                        if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
+                        if (this.Currentpopuptype == 4 || this.Currentpopuptype == 10)
+                        {
+                          if (this.Currentpopuptype == 10)
+                          {
+                            if (this.outoflabor)
+                            {
+                              if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
+                                this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
+                              else
+                                this.SendMessage("You are out of labor!");
+                              this.waitingforlabor = true;
+                              this.Tab.impskillbutton.Text = "Start";
+                              break;
+                            }
+                            this.SendMessage("All of your gems are polished!");
+                            this.Tab.impskillbutton.Text = "Start";
+                            break;
+                          }
+                          if (this.Currentpopuptype == 4)
+                            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 44, (byte) 2, this.Tab.skillassistant.Text);
+                          while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
+                          {
+                            Thread.Sleep(200);
+                            if (this.Currentpopuptype == 10)
+                            {
+                              Thread.Sleep(200);
+                              goto label_295;
+                            }
+                          }
                           break;
+                        }
                       }
-                      this.assisted = false;
-                      this.RequestGroupList();
-                      this.Refresh();
+                      break;
                     }
-                    else
+                    if (!this.Tab.useskillassistant.Checked)
                     {
-                      this.polishsuccess = 0;
-                      this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 59, (byte) 1, (byte) 2);
-                      while (this.polishsuccess == 0)
+                      this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 60, (byte) 0, (byte) 39, (byte) 1, (byte) 2);
+                      while (!this.pause && !(this.Tab.impskillbutton.Text == "Start"))
                       {
                         Thread.Sleep(200);
-                        if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
-                          break;
+                        if (this.Currentpopuptype == 10 || this.polishsuccess != 0)
+                        {
+                          Thread.Sleep(200);
+                          if (this.polishsuccess == 1)
+                          {
+                            do
+                            {
+                              Thread.Sleep(200);
+                            }
+                            while (this.dropitemslot == 0);
+                            this.Drop(this.ServerLocation.X, this.ServerLocation.Y, this.dropitemslot, 1);
+                            this.dropitemslot = 0;
+                          }
+                          this.polishsuccess = 0;
+                          goto label_295;
+                        }
                       }
-                      Thread.Sleep(700);
-                      this.polishsuccess = 0;
-                      this.RequestGroupList();
-                      this.Refresh();
+                      break;
                     }
-                  }
-                }
-                if (this.leavementor)
-                {
-                  Npc npcByName = this.FindNpcByName<Npc>("Carlos");
-                  if (npcByName != null && npcByName.IsOnScreen)
-                  {
-                    this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
-                    if (Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 3);
-                    else
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 23, (byte) 1, (byte) 1);
-                    this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 218, (byte) 1, (byte) 2);
-                    this.leavementor = false;
-                    Thread.Sleep(10000);
-                  }
-                }
-                if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Mentor (rucesion)"))
-                {
-                  Player[] playerArray = this.AnyPlayer();
-                  if (this.checkingformentormarkname == string.Empty)
-                  {
-                    foreach (Player player in playerArray)
-                    {
-                      if (player != null && Program.MainForm.labormulelist.Items[0].ToString().Contains(player.Name))
-                      {
-                        this.checkingformentormarkname = player.Name;
-                        this.checkingformentormarkid = player.ID;
-                        this.hidelegend = true;
-                        this.ClickEntity(player.ID);
-                      }
-                    }
-                  }
-                  if (this.hasamentor)
-                  {
-                    if (DateTime.UtcNow.Subtract(this.Hasmentortimer).TotalSeconds > 2.0)
-                    {
-                      if (Server.Alts.ContainsKey(this.checkingformentormarkname.ToLower()) && !Server.Alts[this.checkingformentormarkname.ToLower()].leavementor)
-                        Server.Alts[this.checkingformentormarkname.ToLower()].leavementor = true;
-                      this.hidelegend = true;
-                      this.ClickEntity(this.checkingformentormarkid);
-                      this.Hasmentortimer = DateTime.UtcNow;
-                      this.hasamentor = false;
-                    }
-                  }
-                  else if (this.mentoraccept)
-                  {
-                    Npc npcByName = this.FindNpcByName<Npc>("Carlos");
-                    if (npcByName != null && npcByName.IsOnScreen)
-                    {
-                      this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
-                      if (this.ihaveamentor)
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 1);
-                      else
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 28, (byte) 1, (byte) 1);
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 41, (byte) 2, this.checkingformentormarkname);
-                      this.mentoraccept = false;
-                      Thread.Sleep(10000);
-                    }
-                  }
-                  else if (this.rementor)
-                  {
-                    Npc npcByName = this.FindNpcByName<Npc>("Carlos");
-                    if (npcByName != null && npcByName.IsOnScreen)
-                    {
-                      this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
-                      if (this.ihaveamentor)
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 2);
-                      else
-                        this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 28, (byte) 1, (byte) 2);
-                      this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 122, (byte) 2, this.checkingformentormarkname);
-                      this.rementor = false;
-                      Thread.Sleep(10000);
-                    }
-                  }
-                }
-label_498:
-                this.CheckMob();
-                if (!this.Mobbed)
-                  this.CheckLoot();
-                if (this.castonghosttimer != DateTime.MinValue && DateTime.UtcNow.Subtract(this.castonghosttimer).TotalSeconds > 7.0)
-                {
-                  this.Refresh();
-                  this.castonghosttimer = DateTime.MinValue;
-                }
-                this.InsectEventAssail();
-                if (!this.pausecast && !this.autowalkon && (this.Tab.useskillshidden.Checked ? (this.SpellBar.Contains((ushort) 10) ? 1 : 0) : (!this.SpellBar.Contains((ushort) 10) ? 1 : 0)) != 0)
-                {
-                  this.SetMainTarget();
-                  if (this.MainTarget != null && (!this.Tab.equipweapon.Checked || this.BestWeapon() == string.Empty))
-                  {
-                    this.ASRS();
-                    if (!this.Tab.asrs.Checked || !this.rsready && !this.asready || (this.IgnoreHP(this.MainTarget.Image) ? (this.MainTarget.HpAmount <= 20.0 ? 1 : 0) : 0) != 0 || !this.MainTarget.Lured || this.HasInfiniteMR(this.MainTarget.Image))
-                      this.AssailMonsters();
-                  }
-                }
-                this.Heal();
-                if (this.restartloop)
-                {
-                  this.restartloop = false;
-                }
-                else
-                {
-                  this.AiteFas();
-                  if (this.restartloop)
-                  {
-                    this.restartloop = false;
+                    goto label_295;
                   }
                   else
+                    goto label_295;
+                }
+              }
+              goto label_498;
+            }
+            else
+            {
+              utcNow = DateTime.UtcNow;
+              ref DateTime local2 = ref utcNow;
+              Dictionary<string, DateTime> gemPolish3 = this.GemPolish;
+              num = this.ServerLocation.X;
+              string str5 = num.ToString();
+              num = this.ServerLocation.Y;
+              string str6 = num.ToString();
+              string key3 = str5 + "," + str6;
+              DateTime dateTime2 = gemPolish3[key3];
+              timeSpan = local2.Subtract(dateTime2);
+              if (timeSpan.TotalSeconds > 60.0)
+              {
+                this.CastSpell("Gem Polishing");
+                Thread.Sleep(1000);
+              }
+            }
+          }
+        }
+label_295:
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Contains("Blade Smith"))
+        {
+          this.impingskill = true;
+          if (this.bladesmithnoswords)
+          {
+            this.DropItems("Dirk");
+            this.DropItems("Eppe");
+            this.SendMessage("Out of dirk/eppe");
+            this.Tab.impskillbutton.Text = "Start";
+            this.bladesmithnoswords = false;
+          }
+          else if (!this.waitingforlabor && (this.HasItem("Dirk") || this.HasItem("Eppe")) && this.MapInfo.Number == 420)
+          {
+            Npc npcByName = this.FindNpcByName<Npc>("Marcelo");
+            if (npcByName != null && npcByName.IsOnScreen)
+            {
+              this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 61);
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 74, (byte) 1, (byte) 1);
+              if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
+              {
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 82, (byte) 1, (byte) 1);
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 87, (byte) 2, this.Tab.skillassistant.Text);
+              }
+              else
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 61, (byte) 0, (byte) 82, (byte) 1, (byte) 2);
+              Thread.Sleep(1000);
+            }
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Contains("Herbalist"))
+        {
+          this.impingskill = true;
+          if (this.has25hydele)
+          {
+            string str = string.Empty;
+            foreach (Item obj in this.Inventory)
+            {
+              if (obj != null && obj.InventorySlot == 1)
+                str = obj.Name;
+            }
+            if (this.HasSkill("Herbal Lore"))
+            {
+              while (!this.HasItem("Hydele deum"))
+              {
+                this.SendMessage("Identifying...", (byte) 18);
+                if (this.CanSkill("Herbal Lore"))
+                {
+                  foreach (Item obj in this.Inventory)
                   {
-                    this.BeagCradh();
-                    if (this.restartloop)
+                    if (obj != null && obj.InventorySlot == 1 && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 54)
                     {
-                      this.restartloop = false;
-                    }
-                    else
-                    {
-                      this.OtherSpells();
-                      if (this.restartloop)
+                      this.blocklores = true;
+                      if (this.CanSkill("Herbal Lore"))
+                        this.UseSkill("Herbal Lore");
+                      do
                       {
-                        this.restartloop = false;
+                        Thread.Sleep(200);
+                      }
+                      while (this.blocklores);
+                      break;
+                    }
+                    if (obj != null && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 54)
+                    {
+                      this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                      Thread.Sleep(350);
+                      break;
+                    }
+                  }
+                }
+                Thread.Sleep(200);
+              }
+              while (this.HasItem("Hydele deum"))
+              {
+                if (this.HasItem("Hydele deum"))
+                {
+                  foreach (Item obj in this.Inventory)
+                  {
+                    if (obj != null && obj.Name == "Hydele deum")
+                    {
+                      this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (str != string.Empty)
+              {
+                foreach (Item obj in this.Inventory)
+                {
+                  if (obj != null && obj.Name == str)
+                  {
+                    this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                    Thread.Sleep(350);
+                  }
+                }
+              }
+              this.SendMessage("", (byte) 18);
+              this.has25hydele = false;
+            }
+          }
+          else if (this.has25betony)
+          {
+            string str = string.Empty;
+            foreach (Item obj in this.Inventory)
+            {
+              if (obj != null && obj.InventorySlot == 1)
+                str = obj.Name;
+            }
+            if (this.HasSkill("Herbal Lore"))
+            {
+              while (!this.HasItem("Betony deum"))
+              {
+                this.SendMessage("Identifying...", (byte) 18);
+                if (this.CanSkill("Herbal Lore"))
+                {
+                  foreach (Item obj in this.Inventory)
+                  {
+                    if (obj != null && obj.InventorySlot == 1 && obj.Name == "Vanilla Potion")
+                    {
+                      this.blocklores = true;
+                      if (this.CanSkill("Herbal Lore"))
+                        this.UseSkill("Herbal Lore");
+                      do
+                      {
+                        Thread.Sleep(200);
+                      }
+                      while (this.blocklores);
+                      break;
+                    }
+                    if (obj != null && obj.Name == "Vanilla Potion")
+                    {
+                      this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                      Thread.Sleep(350);
+                      break;
+                    }
+                  }
+                }
+                Thread.Sleep(200);
+              }
+              while (this.HasItem("Betony deum"))
+              {
+                if (this.HasItem("Betony deum"))
+                {
+                  foreach (Item obj in this.Inventory)
+                  {
+                    if (obj != null && obj.Name == "Betony deum")
+                    {
+                      this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (str != string.Empty)
+              {
+                foreach (Item obj in this.Inventory)
+                {
+                  if (obj != null && obj.Name == str)
+                  {
+                    this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                    Thread.Sleep(350);
+                  }
+                }
+              }
+              this.SendMessage("", (byte) 18);
+              this.has25betony = false;
+            }
+          }
+          else if (this.has25personaca)
+          {
+            string str = string.Empty;
+            foreach (Item obj in this.Inventory)
+            {
+              if (obj != null && obj.InventorySlot == 1)
+                str = obj.Name;
+            }
+            if (this.HasSkill("Herbal Lore"))
+            {
+              while (!this.HasItem("Personaca deum"))
+              {
+                this.SendMessage("Identifying...", (byte) 18);
+                if (this.CanSkill("Herbal Lore"))
+                {
+                  foreach (Item obj in this.Inventory)
+                  {
+                    if (obj != null && obj.InventorySlot == 1 && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 55)
+                    {
+                      this.blocklores = true;
+                      if (this.CanSkill("Herbal Lore"))
+                        this.UseSkill("Herbal Lore");
+                      do
+                      {
+                        Thread.Sleep(200);
+                      }
+                      while (this.blocklores);
+                      break;
+                    }
+                    if (obj != null && obj.Name == "Brown Potion" && (int) obj.Icon - 32768 == 55)
+                    {
+                      this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                      Thread.Sleep(350);
+                      break;
+                    }
+                  }
+                }
+                Thread.Sleep(200);
+              }
+              while (this.HasItem("Personaca deum"))
+              {
+                if (this.HasItem("Personaca deum"))
+                {
+                  foreach (Item obj in this.Inventory)
+                  {
+                    if (obj != null && obj.Name == "Personaca deum")
+                    {
+                      this.Drop(this.ServerLocation.X, this.ServerLocation.Y, 1, 25);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (str != string.Empty)
+              {
+                foreach (Item obj in this.Inventory)
+                {
+                  if (obj != null && obj.Name == str)
+                  {
+                    this.SwitchSlots((byte) 0, obj.InventorySlot, 1);
+                    Thread.Sleep(350);
+                  }
+                }
+              }
+              this.SendMessage("", (byte) 18);
+              this.has25personaca = false;
+            }
+          }
+          else
+          {
+            if (this.MapInfo.Number == 622 && this.ClosestHerbNode() != null)
+            {
+              if (this.herbnodewaittime != DateTime.MinValue && DateTime.UtcNow.Subtract(this.herbnodewaittime).TotalSeconds > 3.0)
+              {
+                Dictionary<string, HerbNode> betonyNodes1 = Server.BetonyNodes;
+                int num = this.ClosestHerbNode().X;
+                string str7 = num.ToString();
+                num = this.ClosestHerbNode().Y;
+                string str8 = num.ToString();
+                string key4 = str7 + "," + str8 + ",622";
+                if (betonyNodes1.ContainsKey(key4))
+                {
+                  Dictionary<string, HerbNode> betonyNodes2 = Server.BetonyNodes;
+                  num = this.ClosestHerbNode().X;
+                  string str9 = num.ToString();
+                  num = this.ClosestHerbNode().Y;
+                  string str10 = num.ToString();
+                  string key5 = str9 + "," + str10 + ",622";
+                  betonyNodes2[key5].Active = false;
+                }
+                Dictionary<string, HerbNode> personacaNodes1 = Server.PersonacaNodes;
+                num = this.ClosestHerbNode().X;
+                string str11 = num.ToString();
+                num = this.ClosestHerbNode().Y;
+                string str12 = num.ToString();
+                string key6 = str11 + "," + str12 + ",622";
+                if (personacaNodes1.ContainsKey(key6))
+                {
+                  Dictionary<string, HerbNode> personacaNodes2 = Server.PersonacaNodes;
+                  num = this.ClosestHerbNode().X;
+                  string str13 = num.ToString();
+                  num = this.ClosestHerbNode().Y;
+                  string str14 = num.ToString();
+                  string key7 = str13 + "," + str14 + ",622";
+                  personacaNodes2[key7].Active = false;
+                }
+                Dictionary<string, HerbNode> hydeleNodes1 = Server.HydeleNodes;
+                num = this.ClosestHerbNode().X;
+                string str15 = num.ToString();
+                num = this.ClosestHerbNode().Y;
+                string str16 = num.ToString();
+                string key8 = str15 + "," + str16 + ",622";
+                if (hydeleNodes1.ContainsKey(key8))
+                {
+                  Dictionary<string, HerbNode> hydeleNodes2 = Server.HydeleNodes;
+                  num = this.ClosestHerbNode().X;
+                  string str17 = num.ToString();
+                  num = this.ClosestHerbNode().Y;
+                  string str18 = num.ToString();
+                  string key9 = str17 + "," + str18 + ",622";
+                  hydeleNodes2[key9].Active = false;
+                }
+                this.herbnodewaittime = DateTime.MinValue;
+              }
+              else if (this.herbnodewaittime == DateTime.MinValue)
+              {
+                if (this.ServerLocation.X == this.ClosestHerbNode().X && this.ServerLocation.Y == this.ClosestHerbNode().Y)
+                {
+                  this.Refresh();
+                  this.herbnodewaittime = DateTime.UtcNow;
+                }
+                else
+                  this.WalkToExact(this.ClosestHerbNode().X, this.ClosestHerbNode().Y);
+              }
+            }
+            if (this.MapInfo.Number == 622)
+              this.ClosestHerbNode();
+            if (this.Currentnpctext.Contains("Alone") && this.Currentnpctext.Contains("Prepare"))
+            {
+              this.herbnodewaittime = DateTime.MinValue;
+              if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
+              {
+                uint currentnpcpopupId = this.CurrentnpcpopupID;
+                this.assisted = false;
+                this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, (byte) 40, (byte) 0, (byte) 84, (byte) 1, (byte) 1);
+                this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, (byte) 40, (byte) 0, (byte) 92, (byte) 2, this.Tab.skillassistant.Text);
+                while (!this.assisted)
+                {
+                  Thread.Sleep(200);
+                  if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
+                    break;
+                }
+                this.RequestGroupList();
+              }
+              else
+              {
+                this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 40, (byte) 0, (byte) 84, (byte) 1, (byte) 2);
+                do
+                {
+                  Thread.Sleep(200);
+                }
+                while (this.Currentpopuptype != 10);
+                this.RequestGroupList();
+              }
+            }
+            if (this.Currentnpctext.Contains(" cannot prepare more "))
+            {
+              this.herbnodewaittime = DateTime.MinValue;
+              if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
+                this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
+              else
+                this.SendMessage("You are out of labor!");
+              this.waitingforlabor = true;
+              this.outoflabor = true;
+              this.Tab.impskillbutton.Text = "Start";
+              this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 40, (byte) 0, (byte) 11);
+            }
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Wizardry Researcher"))
+        {
+          this.impingskill = true;
+          if (this.Currentnpctext.StartsWith("Do you need help before"))
+          {
+            this.wizresearchID = this.CurrentnpcpopupID;
+            this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 20, (byte) 1, (byte) 1);
+            this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 26, (byte) 1, (byte) 1);
+            if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
+            {
+              this.assisted = false;
+              this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 57, (byte) 1, (byte) 1);
+              this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 62, (byte) 2, this.Tab.skillassistant.Text);
+              while (!this.assisted)
+              {
+                Thread.Sleep(200);
+                if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
+                  break;
+              }
+              this.assisted = false;
+              this.RequestGroupList();
+            }
+            else
+            {
+              this.PopupRespond(new uint?(this.wizresearchID), (byte) 1, (byte) 59, (byte) 0, (byte) 57, (byte) 1, (byte) 2);
+              while (this.Currentpopuptype != 10)
+                Thread.Sleep(200);
+              this.RequestGroupList();
+            }
+          }
+          else if (this.Currentnpctext.StartsWith("You have researched already"))
+          {
+            if (this.Tab.requestlabor.Checked && this.Tab.requestlabornametext.Text != string.Empty)
+              this.Whisper(this.Tab.requestlabornametext.Text, this.Tab.requestlabormessagetext.Text);
+            else
+              this.SendMessage("You are out of labor!");
+            this.waitingforlabor = true;
+            this.outoflabor = true;
+            Thread.Sleep(200);
+            this.PopupRespond(new uint?(this.CurrentnpcpopupID), (byte) 1, (byte) 59, (byte) 0, (byte) 13);
+            this.Tab.impskillbutton.Text = "Start";
+          }
+          else if (!this.outoflabor && !this.assisted)
+          {
+            this.Refresh();
+            Thread.Sleep(1000);
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Elementalist"))
+        {
+          this.impingskill = true;
+          if (this.Currentnpctext.Contains("Do not touch the nadurra"))
+          {
+            byte script = 50;
+            if (this.Currentnpctext.Contains("athar"))
+              script = (byte) 46;
+            else if (this.Currentnpctext.Contains("creag"))
+              script = (byte) 48;
+            else if (this.Currentnpctext.Contains("srad"))
+              script = (byte) 44;
+            uint currentnpcpopupId = this.CurrentnpcpopupID;
+            if (this.Tab.useskillassistant.Checked && this.Tab.skillassistant.Text != string.Empty)
+            {
+              this.assisted = false;
+              this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 59, (byte) 1, (byte) 1);
+              this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 67, (byte) 2, this.Tab.skillassistant.Text);
+              while (!this.assisted)
+              {
+                Thread.Sleep(200);
+                if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
+                  break;
+              }
+              this.assisted = false;
+              this.RequestGroupList();
+              this.Refresh();
+            }
+            else
+            {
+              this.polishsuccess = 0;
+              this.PopupRespond(new uint?(currentnpcpopupId), (byte) 1, script, (byte) 0, (byte) 59, (byte) 1, (byte) 2);
+              while (this.polishsuccess == 0)
+              {
+                Thread.Sleep(200);
+                if (this.Tab.impskillbutton.Text == "Start" || this.pause || !this.Tab.useskillassistant.Checked)
+                  break;
+              }
+              Thread.Sleep(700);
+              this.polishsuccess = 0;
+              this.RequestGroupList();
+              this.Refresh();
+            }
+          }
+        }
+        if (this.leavementor)
+        {
+          Npc npcByName = this.FindNpcByName<Npc>("Carlos");
+          if (npcByName != null && npcByName.IsOnScreen)
+          {
+            this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
+            if (Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 3);
+            else
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 23, (byte) 1, (byte) 1);
+            this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 218, (byte) 1, (byte) 2);
+            this.leavementor = false;
+            Thread.Sleep(10000);
+          }
+        }
+        if (this.Tab.vimpskillbutton && this.Tab.improveskill.Text.Equals("Mentor (rucesion)"))
+        {
+          Player[] playerArray = this.AnyPlayer();
+          if (this.checkingformentormarkname == string.Empty)
+          {
+            foreach (Player player in playerArray)
+            {
+              if (player != null && Program.MainForm.labormulelist.Items[0].ToString().Contains(player.Name))
+              {
+                this.checkingformentormarkname = player.Name;
+                this.checkingformentormarkid = player.ID;
+                this.hidelegend = true;
+                this.ClickEntity(player.ID);
+              }
+            }
+          }
+          if (this.hasamentor)
+          {
+            if (DateTime.UtcNow.Subtract(this.Hasmentortimer).TotalSeconds > 2.0)
+            {
+              if (Server.Alts.ContainsKey(this.checkingformentormarkname.ToLower()) && !Server.Alts[this.checkingformentormarkname.ToLower()].leavementor)
+                Server.Alts[this.checkingformentormarkname.ToLower()].leavementor = true;
+              this.hidelegend = true;
+              this.ClickEntity(this.checkingformentormarkid);
+              this.Hasmentortimer = DateTime.UtcNow;
+              this.hasamentor = false;
+            }
+          }
+          else if (this.mentoraccept)
+          {
+            Npc npcByName = this.FindNpcByName<Npc>("Carlos");
+            if (npcByName != null && npcByName.IsOnScreen)
+            {
+              this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
+              if (this.ihaveamentor)
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 1);
+              else
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 28, (byte) 1, (byte) 1);
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 41, (byte) 2, this.checkingformentormarkname);
+              this.mentoraccept = false;
+              Thread.Sleep(10000);
+            }
+          }
+          else if (this.rementor)
+          {
+            Npc npcByName = this.FindNpcByName<Npc>("Carlos");
+            if (npcByName != null && npcByName.IsOnScreen)
+            {
+              this.DialogueRespond(npcByName.ID, (byte) 5, (byte) 56);
+              if (this.ihaveamentor)
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 34, (byte) 1, (byte) 2);
+              else
+                this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 28, (byte) 1, (byte) 2);
+              this.PopupRespond(new uint?(npcByName.ID), (byte) 1, (byte) 56, (byte) 0, (byte) 122, (byte) 2, this.checkingformentormarkname);
+              this.rementor = false;
+              Thread.Sleep(10000);
+            }
+          }
+        }
+label_498:
+        this.CheckMob();
+        if (!this.Mobbed)
+          this.CheckLoot();
+        if (this.castonghosttimer != DateTime.MinValue && DateTime.UtcNow.Subtract(this.castonghosttimer).TotalSeconds > 7.0)
+        {
+          this.Refresh();
+          this.castonghosttimer = DateTime.MinValue;
+        }
+        this.InsectEventAssail();
+        if (!this.pausecast && !this.autowalkon && (this.Tab.useskillshidden.Checked ? (this.SpellBar.Contains((ushort) 10) ? 1 : 0) : (!this.SpellBar.Contains((ushort) 10) ? 1 : 0)) != 0)
+        {
+          this.SetMainTarget();
+          if (this.MainTarget != null && (!this.Tab.equipweapon.Checked || this.BestWeapon() == string.Empty))
+          {
+            this.ASRS();
+            if (!this.Tab.asrs.Checked || !this.rsready && !this.asready || (this.IgnoreHP(this.MainTarget.Image) ? (this.MainTarget.HpAmount <= 20.0 ? 1 : 0) : 0) != 0 || !this.MainTarget.Lured || this.HasInfiniteMR(this.MainTarget.Image))
+              this.AssailMonsters();
+          }
+        }
+        this.Heal();
+        if (this.restartloop)
+        {
+          this.restartloop = false;
+        }
+        else
+        {
+          this.AiteFas();
+          if (this.restartloop)
+          {
+            this.restartloop = false;
+          }
+          else
+          {
+            this.BeagCradh();
+            if (this.restartloop)
+            {
+              this.restartloop = false;
+            }
+            else
+            {
+              this.OtherSpells();
+              if (this.restartloop)
+              {
+                this.restartloop = false;
+              }
+              else
+              {
+                if (!this.pausecast)
+                {
+                  if (this.Tab.lurewithspells.Checked && this.Tab.lurespells.SelectedItem != null || this.Tab.lurewithlamh.Checked)
+                  {
+                    if (((IEnumerable<Npc>) this.TargetArray()).Count<Npc>() - ((IEnumerable<Npc>) this.IgnoreLureArray()).Count<Npc>() != 0)
+                    {
+                      int num = 0;
+                      foreach (Npc target in this.TargetArray())
+                      {
+                        if (target != null && target.IsOnScreen && target.Lured && !this.IgnoreLure(target.Image))
+                          ++num;
+                      }
+                      if ((Decimal) num >= this.Tab.mobsize.Value)
+                        this.luring = false;
+                      else if ((long) num == (long) (uint) (((IEnumerable<Npc>) this.TargetArray()).Count<Npc>() - ((IEnumerable<Npc>) this.IgnoreLureArray()).Count<Npc>()))
+                      {
+                        this.luring = false;
                       }
                       else
                       {
-                        if (!this.pausecast)
+                        foreach (Npc target in this.TargetArray())
                         {
-                          if (this.Tab.lurewithspells.Checked && this.Tab.lurespells.SelectedItem != null || this.Tab.lurewithlamh.Checked)
+                          if (target != null && target.IsOnScreen && !target.Lured && !this.IgnoreLure(target.Image))
                           {
-                            if (((IEnumerable<Npc>) this.TargetArray()).Count<Npc>() - ((IEnumerable<Npc>) this.IgnoreLureArray()).Count<Npc>() != 0)
+                            this.luring = true;
+                            if (this.Tab.lurewithlamh.Checked)
                             {
-                              int num = 0;
-                              foreach (Npc target in this.TargetArray())
-                              {
-                                if (target != null && target.IsOnScreen && target.Lured && !this.IgnoreLure(target.Image))
-                                  ++num;
-                              }
-                              if ((Decimal) num >= this.Tab.mobsize.Value)
-                                this.luring = false;
-                              else if ((long) num == (long) (uint) (((IEnumerable<Npc>) this.TargetArray()).Count<Npc>() - ((IEnumerable<Npc>) this.IgnoreLureArray()).Count<Npc>()))
-                              {
-                                this.luring = false;
-                              }
-                              else
-                              {
-                                foreach (Npc target in this.TargetArray())
-                                {
-                                  if (target != null && target.IsOnScreen && !target.Lured && !this.IgnoreLure(target.Image))
-                                  {
-                                    this.luring = true;
-                                    if (this.Tab.lurewithlamh.Checked)
-                                    {
-                                      if (this.HasSpell("beag athar lamh"))
-                                        this.CastSpell("beag athar lamh");
-                                      else if (this.HasSpell("beag srad lamh"))
-                                        this.CastSpell("beag srad lamh");
-                                      else if (this.HasSpell("athar lamh"))
-                                        this.CastSpell("athar lamh");
-                                      else if (this.HasSpell("srad lamh"))
-                                        this.CastSpell("srad lamh");
-                                      else if (this.HasSpell("Howl"))
-                                        this.CastSpell("Howl");
-                                    }
-                                    else if (this.Tab.lurespellwith != null && (long) this.Statistics.CurrentMP > (long) Server.SpellList[this.Tab.lurespellwith.Name].ManaCost)
-                                    {
-                                      if (this.Tab.onlylurewithmp.Checked && this.Tab.onlylurewithmpamount.Text != string.Empty)
-                                      {
-                                        if (this.Statistics.CurrentMP > uint.Parse(this.Tab.onlylurewithmpamount.Text) && this.HasSpell(this.Tab.lurespellwith.Name))
-                                          this.CastSpell(this.Tab.lurespellwith.Name, new uint?(target.ID));
-                                      }
-                                      else if (this.HasSpell(this.Tab.lurespellwith.Name))
-                                        this.CastSpell(this.Tab.lurespellwith.Name, new uint?(target.ID));
-                                    }
-                                  }
-                                }
-                              }
+                              if (this.HasSpell("beag athar lamh"))
+                                this.CastSpell("beag athar lamh");
+                              else if (this.HasSpell("beag srad lamh"))
+                                this.CastSpell("beag srad lamh");
+                              else if (this.HasSpell("athar lamh"))
+                                this.CastSpell("athar lamh");
+                              else if (this.HasSpell("srad lamh"))
+                                this.CastSpell("srad lamh");
+                              else if (this.HasSpell("Howl"))
+                                this.CastSpell("Howl");
                             }
-                            else
-                              this.luring = false;
-                          }
-                          if (!this.Tab.lurewithspells.Checked || this.Tab.lurewithspells.Checked && !this.luring)
-                          {
-                            this.SpellMonsters();
-                            if (this.monsterloop)
+                            else if (this.Tab.lurespellwith != null && (long) this.Statistics.CurrentMP > (long) Server.SpellList[this.Tab.lurespellwith.Name].ManaCost)
                             {
-                              this.monsterloop = false;
-                              goto label_996;
+                              if (this.Tab.onlylurewithmp.Checked && this.Tab.onlylurewithmpamount.Text != string.Empty)
+                              {
+                                if (this.Statistics.CurrentMP > uint.Parse(this.Tab.onlylurewithmpamount.Text) && this.HasSpell(this.Tab.lurespellwith.Name))
+                                  this.CastSpell(this.Tab.lurespellwith.Name, new uint?(target.ID));
+                              }
+                              else if (this.HasSpell(this.Tab.lurespellwith.Name))
+                                this.CastSpell(this.Tab.lurespellwith.Name, new uint?(target.ID));
                             }
                           }
                         }
-                        if ((this.Tab.vaocurse || this.autowalkon && this.Tab.walkao.Checked) && !this.aocradhsbefore)
+                      }
+                    }
+                    else
+                      this.luring = false;
+                  }
+                  if (!this.Tab.lurewithspells.Checked || this.Tab.lurewithspells.Checked && !this.luring)
+                  {
+                    this.SpellMonsters();
+                    if (this.monsterloop)
+                    {
+                      this.monsterloop = false;
+                      continue;
+                    }
+                  }
+                }
+                if ((this.Tab.vaocurse || this.autowalkon && this.Tab.walkao.Checked) && !this.aocradhsbefore)
+                {
+                  if (this.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
+                    this.CastSpell("ao ard cradh", new uint?(this.PlayerID));
+                  if (this.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
+                    this.CastSpell("ao mor cradh", new uint?(this.PlayerID));
+                  if (this.SpellBar.Contains((ushort) 82) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                    this.CastSpell("ao cradh", new uint?(this.PlayerID));
+                  if (this.SpellBar.Contains((ushort) 5) && !this.Tab.vselfbc && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                    this.CastSpell("ao beag cradh", new uint?(this.PlayerID));
+                }
+                if ((this.Tab.vaocurse || this.autowalkon && this.Tab.walkao.Checked) && !this.aocradhsbefore && this.MapInfo.Number != 509 && !this.SpellBar.Contains((ushort) 89) && this.SpellBar.Contains((ushort) 133) && this.Characters.ContainsKey(this.PlayerID) && !this.Characters[this.PlayerID].hasdarkerseal && DateTime.UtcNow.Subtract(this.grimescenttime).TotalSeconds > 11.0 && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  this.UseItem("Grime Scent");
+                  this.grimescenttime = DateTime.UtcNow;
+                }
+                if (this.Tab.vselfbc && !this.beagcradhbefore && !this.SpellBar.Contains((ushort) 5) && !this.SpellBar.Contains((ushort) 84) && !this.SpellBar.Contains((ushort) 83) && !this.SpellBar.Contains((ushort) 82) && !this.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                {
+                  this.CastSpell("beag cradh", new uint?(this.PlayerID));
+                  this.restartloop = true;
+                }
+                if (this.Tab.targetgroup != null)
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
+                    {
+                      if (this.Tab.targetgroup.aocursesgroup.Checked && !this.aocradhsbefore)
+                      {
+                        if (client.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
+                          this.CastSpell("ao ard cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
+                          this.CastSpell("ao mor cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 82) && !this.Tab.targetgroup.ignorebardogroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                          this.CastSpell("ao cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 5) && !this.Tab.targetgroup.beagcradhgroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                          this.CastSpell("ao beag cradh", new uint?(client.PlayerID));
+                      }
+                      if (this.Tab.targetgroup.beagcradhgroup.Checked && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                      {
+                        this.CastSpell("beag cradh", new uint?(client.PlayerID));
+                        this.restartloop = true;
+                      }
+                    }
+                  }
+                  foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                  {
+                    if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen)
+                    {
+                      if (this.Tab.targetgroup.aocursesgroup.Checked && !this.aocradhsbefore)
+                      {
+                        if (Server.StaticCharacters[player.ID].hasardcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
+                          this.CastSpell("ao ard cradh", new uint?(player.ID));
+                        if (Server.StaticCharacters[player.ID].hasmorcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
+                          this.CastSpell("ao mor cradh", new uint?(player.ID));
+                        if (Server.StaticCharacters[player.ID].hascradh && !this.Tab.targetgroup.ignorebardogroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                          this.CastSpell("ao cradh", new uint?(player.ID));
+                        if (Server.StaticCharacters[player.ID].hasbeagcradh && !this.Tab.targetgroup.beagcradhgroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                          this.CastSpell("ao beag cradh", new uint?(player.ID));
+                      }
+                      if (this.Tab.targetgroup.beagcradhgroup.Checked && !this.beagcradhbefore && !Server.StaticCharacters[player.ID].hasbeagcradh && !Server.StaticCharacters[player.ID].hascradh && !Server.StaticCharacters[player.ID].hasmorcradh &&
+                      !Server.StaticCharacters[player.ID].hasardcradh && !Server.StaticCharacters[player.ID].hasdarkseal && !Server.StaticCharacters[player.ID].hasdarkerseal && !Server.StaticCharacters[player.ID].hasdemise && !Server.StaticCharacters[player.ID].hasdemonseal &&
+                      (long)this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                      {
+                        this.CastSpell("beag cradh", new uint?(player.ID));
+                        this.restartloop = true;
+                      }
+                    }
+                  }
+                }
+                if (this.Tab.allalts != null)
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
+                    {
+                      if (this.Tab.allalts.vaocurses && !this.aocradhsbefore)
+                      {
+                        if (client.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
+                          this.CastSpell("ao ard cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
+                          this.CastSpell("ao mor cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 82) && !this.Tab.allalts.vignorebardo && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                          this.CastSpell("ao cradh", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 5) && !this.Tab.allalts.vbeagcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                          this.CastSpell("ao beag cradh", new uint?(client.PlayerID));
+                      }
+                      if (this.Tab.allalts.vbeagcradh && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                      {
+                        this.CastSpell("beag cradh", new uint?(client.PlayerID));
+                        this.restartloop = true;
+                      }
+                    }
+                  }
+                }
+                if (this.targetplayer.Count > 0)
+                {
+                  foreach (targetPlayer targetPlayer in this.targetplayer)
+                  {
+                    if (targetPlayer != null)
+                    {
+                      this.thename = targetPlayer.Text;
+                      if (this.alts.Contains((object) this.thename.ToLower()))
+                      {
+                        foreach (Client client in Server.Alts.Values.ToArray<Client>())
                         {
-                          if (this.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
-                            this.CastSpell("ao ard cradh", new uint?(this.PlayerID));
-                          if (this.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
-                            this.CastSpell("ao mor cradh", new uint?(this.PlayerID));
-                          if (this.SpellBar.Contains((ushort) 82) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
-                            this.CastSpell("ao cradh", new uint?(this.PlayerID));
-                          if (this.SpellBar.Contains((ushort) 5) && !this.Tab.vselfbc && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
-                            this.CastSpell("ao beag cradh", new uint?(this.PlayerID));
-                        }
-                        if ((this.Tab.vaocurse || this.autowalkon && this.Tab.walkao.Checked) && !this.aocradhsbefore && this.MapInfo.Number != 509 && !this.SpellBar.Contains((ushort) 89) && this.SpellBar.Contains((ushort) 133) && this.Characters.ContainsKey(this.PlayerID) && !this.Characters[this.PlayerID].hasdarkerseal && DateTime.UtcNow.Subtract(this.grimescenttime).TotalSeconds > 11.0 && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          this.UseItem("Grime Scent");
-                          this.grimescenttime = DateTime.UtcNow;
-                        }
-                        if (this.Tab.vselfbc && !this.beagcradhbefore && !this.SpellBar.Contains((ushort) 5) && !this.SpellBar.Contains((ushort) 84) && !this.SpellBar.Contains((ushort) 83) && !this.SpellBar.Contains((ushort) 82) && !this.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
-                        {
-                          this.CastSpell("beag cradh", new uint?(this.PlayerID));
-                          this.restartloop = true;
-                        }
-                        if (this.Tab.targetgroup != null)
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                          if (client != null)
                           {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
+                            this.c = string.Equals(this.thename, client.Name, StringComparison.OrdinalIgnoreCase);
+                            if (this.c && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
                             {
-                              if (this.Tab.targetgroup.aocursesgroup.Checked && !this.aocradhsbefore)
+                              if (targetPlayer.aocursesplayer.Checked && !this.aocradhsbefore)
                               {
                                 if (client.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
                                   this.CastSpell("ao ard cradh", new uint?(client.PlayerID));
                                 if (client.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
                                   this.CastSpell("ao mor cradh", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 82) && !this.Tab.targetgroup.ignorebardogroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                                if (client.SpellBar.Contains((ushort) 82) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
                                   this.CastSpell("ao cradh", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 5) && !this.Tab.targetgroup.beagcradhgroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                                if (client.SpellBar.Contains((ushort) 5) && !targetPlayer.beagcradhplayer.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
                                   this.CastSpell("ao beag cradh", new uint?(client.PlayerID));
                               }
-                              if (this.Tab.targetgroup.beagcradhgroup.Checked && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                              if (targetPlayer.beagcradhplayer.Checked && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
                               {
                                 this.CastSpell("beag cradh", new uint?(client.PlayerID));
                                 this.restartloop = true;
                               }
                             }
                           }
-                          foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                        }
+                      }
+                      else
+                      {
+                        foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                        {
+                          if (player != null && player.Name.Equals(this.thename, StringComparison.OrdinalIgnoreCase) && player.IsOnScreen)
                           {
-                            if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen)
+                            if (targetPlayer.aocursesplayer.Checked && !this.aocradhsbefore)
                             {
-                              if (this.Tab.targetgroup.aocursesgroup.Checked && !this.aocradhsbefore)
-                              {
-                                if (Server.StaticCharacters[player.ID].hasardcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
-                                  this.CastSpell("ao ard cradh", new uint?(player.ID));
-                                if (Server.StaticCharacters[player.ID].hasmorcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
-                                  this.CastSpell("ao mor cradh", new uint?(player.ID));
-                                if (Server.StaticCharacters[player.ID].hascradh && !this.Tab.targetgroup.ignorebardogroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
-                                  this.CastSpell("ao cradh", new uint?(player.ID));
-                                if (Server.StaticCharacters[player.ID].hasbeagcradh && !this.Tab.targetgroup.beagcradhgroup.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
-                                  this.CastSpell("ao beag cradh", new uint?(player.ID));
-                              }
-                              if (this.Tab.targetgroup.beagcradhgroup.Checked && !this.beagcradhbefore && !Server.StaticCharacters[player.ID].hasbeagcradh && !Server.StaticCharacters[player.ID].hascradh && !Server.StaticCharacters[player.ID].hasmorcradh &&
-                              !Server.StaticCharacters[player.ID].hasardcradh && !Server.StaticCharacters[player.ID].hasdarkseal && !Server.StaticCharacters[player.ID].hasdarkerseal && !Server.StaticCharacters[player.ID].hasdemise && !Server.StaticCharacters[player.ID].hasdemonseal &&
-                              (long)this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
-                              {
-                                this.CastSpell("beag cradh", new uint?(player.ID));
-                                this.restartloop = true;
-                              }
+                              if (Server.StaticCharacters[player.ID].hasardcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
+                                this.CastSpell("ao ard cradh", new uint?(player.ID));
+                              if (Server.StaticCharacters[player.ID].hasmorcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
+                                this.CastSpell("ao mor cradh", new uint?(player.ID));
+                              if (Server.StaticCharacters[player.ID].hascradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
+                                this.CastSpell("ao cradh", new uint?(player.ID));
+                              if (Server.StaticCharacters[player.ID].hasbeagcradh && !targetPlayer.beagcradhplayer.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
+                                this.CastSpell("ao beag cradh", new uint?(player.ID));
+                            }
+                            if (targetPlayer.beagcradhplayer.Checked && !this.beagcradhbefore && !Server.StaticCharacters[player.ID].hasbeagcradh && !Server.StaticCharacters[player.ID].hascradh && !Server.StaticCharacters[player.ID].hasmorcradh && !Server.StaticCharacters[player.ID].hasardcradh && !Server.StaticCharacters[player.ID].hasdarkseal && !Server.StaticCharacters[player.ID].hasdarkerseal && !Server.StaticCharacters[player.ID].hasdemise && !Server.StaticCharacters[player.ID].hasdemonseal && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
+                            {
+                              this.CastSpell("beag cradh", new uint?(player.ID));
+                              this.restartloop = true;
                             }
                           }
                         }
-                        if (this.Tab.allalts != null)
+                      }
+                    }
+                  }
+                }
+                if (this.Tab.vdisenchanter && !this.disbefore && (!this.disIsSummoned || DateTime.UtcNow.Subtract(this.distime).TotalSeconds > 361.0) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Disenchanter"].ManaCost)
+                {
+                  this.disstopwalk = true;
+                  this.CastSpell("Disenchanter");
+                }
+                if ((this.Tab.vselfaopuinsein || this.autowalkon && this.Tab.walkao.Checked) && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (this.SpellBar.Contains((ushort) 35) || this.SpellBar.Contains((ushort) 141) || this.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                {
+                  this.CastSpell("ao puinsein", new uint?(this.PlayerID));
+                  if (this.SpellBar.Contains((ushort) 35))
+                    this.SpellBar.Remove((ushort) 35);
+                  else if (this.SpellBar.Contains((ushort) 1))
+                    this.SpellBar.Remove((ushort) 1);
+                  else if (this.SpellBar.Contains((ushort) 141))
+                    this.SpellBar.Remove((ushort) 141);
+                }
+                if (this.Tab.vselfregen && !this.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 5"].ManaCost)
+                {
+                  foreach (Spell spell in this.SpellBook)
+                  {
+                    if (spell != null && spell.Name.Contains("Regeneration"))
+                    {
+                      this.CastSpell(spell.Name, new uint?(this.PlayerID));
+                      break;
+                    }
+                  }
+                }
+                if (this.Tab.vselfregen && !this.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
+                  this.CastSpell("Increased Regeneration", new uint?(this.PlayerID));
+                if (this.Tab.vselfca && !this.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 5"].ManaCost)
+                {
+                  foreach (Spell spell in this.SpellBook)
+                  {
+                    if (spell != null && spell.Name.Contains("Counter Attack"))
+                    {
+                      this.CastSpell(spell.Name, new uint?(this.PlayerID));
+                      break;
+                    }
+                  }
+                }
+                if (this.Tab.vdragonsscale && !this.SpellBar.Contains((ushort) 94) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  if (!this.SpellBar.Contains((ushort) 10))
+                    this.UseItem("Dragon's Scale");
+                }
+                else if (this.Tab.vselfarm && !this.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                  this.CastSpell("armachd", new uint?(this.PlayerID));
+                if (this.Tab.vnervestimulant && !this.SpellBar.Contains((ushort) 16) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  if (!this.SpellBar.Contains((ushort) 10))
+                    this.UseItem("Nerve Stimulant");
+                }
+                else if (this.Tab.vselfbean && !this.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                {
+                  if (this.HasSpell("mor beannaich"))
+                    this.CastSpell("mor beannaich", new uint?(this.PlayerID));
+                  else
+                    this.CastSpell("beannaich", new uint?(this.PlayerID));
+                }
+                if (this.Tab.vmusclestimulant && !this.SpellBar.Contains((ushort) 52) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  if (!this.SpellBar.Contains((ushort) 10))
+                    this.UseItem("Muscle Stimulant");
+                }
+                else if (this.Tab.vselffasdeireas && !this.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
+                  this.CastSpell("fas deireas", new uint?(this.PlayerID));
+                if (this.Tab.vselfcreagneart && !this.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                  this.CastSpell("creag neart", new uint?(this.PlayerID));
+                if (this.Tab.vdragonsfire && !this.SpellBar.Contains((ushort) 98) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name] && !this.SpellBar.Contains((ushort) 10))
+                  this.UseItem("Dragon's Fire");
+                if (this.Tab.vselfmist && !this.SpellBar.Contains((ushort) 55) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Mist"].ManaCost)
+                  this.CastSpell("Mist");
+                if (this.Tab.targetgroup != null)
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
+                    {
+                      if (this.Tab.targetgroup.aopuinseingroup.Checked && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                      {
+                        this.CastSpell("ao puinsein", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 35))
+                          client.SpellBar.Remove((ushort) 35);
+                        else if (client.SpellBar.Contains((ushort) 1))
+                          client.SpellBar.Remove((ushort) 1);
+                        else if (client.SpellBar.Contains((ushort) 141))
+                          client.SpellBar.Remove((ushort) 141);
+                      }
+                      if (this.Tab.targetgroup.armachdgroup.Checked && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                        this.CastSpell("armachd", new uint?(client.PlayerID));
+                      if (this.Tab.targetgroup.beanngroup.Checked && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                      {
+                        if (this.HasSpell("mor beannaich"))
+                          this.CastSpell("mor beannaich", new uint?(client.PlayerID));
+                        else
+                          this.CastSpell("beannaich", new uint?(client.PlayerID));
+                      }
+                      if (this.Tab.targetgroup.creagneartgroup.Checked && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                        this.CastSpell("creag neart", new uint?(client.PlayerID));
+                      if (this.Tab.targetgroup.fasdeireasgroup.Checked && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
+                        this.CastSpell("fas deireas", new uint?(client.PlayerID));
+                    }
+                  }
+                  foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                  {
+                    if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen)
+                    {
+                      if (this.Tab.targetgroup.aopuinseingroup.Checked && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                        this.CastSpell("ao puinsein", new uint?(player.ID));
+                      if (this.Tab.targetgroup.armachdgroup.Checked && !Server.StaticCharacters[player.ID].hasarmachd && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                        this.CastSpell("armachd", new uint?(player.ID));
+                      if (this.Tab.targetgroup.beanngroup.Checked && !Server.StaticCharacters[player.ID].hasbeann && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                      {
+                        if (this.HasSpell("mor beannaich"))
+                          this.CastSpell("mor beannaich", new uint?(player.ID));
+                        else
+                          this.CastSpell("beannaich", new uint?(player.ID));
+                      }
+                      if (this.Tab.targetgroup.creagneartgroup.Checked && !Server.StaticCharacters[player.ID].hascreagneart && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                        this.CastSpell("creag neart", new uint?(player.ID));
+                    }
+                  }
+                }
+                if (this.Tab.allalts != null)
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
+                    {
+                      if (this.Tab.allalts.vaopuinsein && !this.aopuinseinbefore && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                      {
+                        this.CastSpell("ao puinsein", new uint?(client.PlayerID));
+                        if (client.SpellBar.Contains((ushort) 35))
+                          client.SpellBar.Remove((ushort) 35);
+                        else if (client.SpellBar.Contains((ushort) 1))
+                          client.SpellBar.Remove((ushort) 1);
+                        else if (client.SpellBar.Contains((ushort) 141))
+                          client.SpellBar.Remove((ushort) 141);
+                      }
+                      if (this.Tab.allalts.vregen && !client.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
+                      {
+                        foreach (Spell spell in this.SpellBook)
                         {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                          if (spell != null && spell.Name.Contains("Regeneration"))
                           {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
-                            {
-                              if (this.Tab.allalts.vaocurses && !this.aocradhsbefore)
-                              {
-                                if (client.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
-                                  this.CastSpell("ao ard cradh", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
-                                  this.CastSpell("ao mor cradh", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 82) && !this.Tab.allalts.vignorebardo && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
-                                  this.CastSpell("ao cradh", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 5) && !this.Tab.allalts.vbeagcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
-                                  this.CastSpell("ao beag cradh", new uint?(client.PlayerID));
-                              }
-                              if (this.Tab.allalts.vbeagcradh && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
-                              {
-                                this.CastSpell("beag cradh", new uint?(client.PlayerID));
-                                this.restartloop = true;
-                              }
-                            }
+                            this.CastSpell(spell.Name, new uint?(client.PlayerID));
+                            break;
                           }
                         }
-                        if (this.targetplayer.Count > 0)
+                      }
+                      if (this.Tab.allalts.vregen && !client.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
+                        this.CastSpell("Increased Regeneration", new uint?(client.PlayerID));
+                      if (this.Tab.allalts.vca && !client.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
+                      {
+                        foreach (Spell spell in this.SpellBook)
                         {
-                          foreach (targetPlayer targetPlayer in this.targetplayer)
+                          if (spell != null && spell.Name.Contains("Counter Attack"))
                           {
-                            if (targetPlayer != null)
-                            {
-                              this.thename = targetPlayer.Text;
-                              if (this.alts.Contains((object) this.thename.ToLower()))
-                              {
-                                foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                                {
-                                  if (client != null)
-                                  {
-                                    this.c = string.Equals(this.thename, client.Name, StringComparison.OrdinalIgnoreCase);
-                                    if (this.c && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
-                                    {
-                                      if (targetPlayer.aocursesplayer.Checked && !this.aocradhsbefore)
-                                      {
-                                        if (client.SpellBar.Contains((ushort) 84) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
-                                          this.CastSpell("ao ard cradh", new uint?(client.PlayerID));
-                                        if (client.SpellBar.Contains((ushort) 83) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
-                                          this.CastSpell("ao mor cradh", new uint?(client.PlayerID));
-                                        if (client.SpellBar.Contains((ushort) 82) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
-                                          this.CastSpell("ao cradh", new uint?(client.PlayerID));
-                                        if (client.SpellBar.Contains((ushort) 5) && !targetPlayer.beagcradhplayer.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
-                                          this.CastSpell("ao beag cradh", new uint?(client.PlayerID));
-                                      }
-                                      if (targetPlayer.beagcradhplayer.Checked && !this.beagcradhbefore && !client.SpellBar.Contains((ushort) 5) && !client.SpellBar.Contains((ushort) 84) && !client.SpellBar.Contains((ushort) 83) && !client.SpellBar.Contains((ushort) 82) && !client.SpellBar.Contains((ushort) 133) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
-                                      {
-                                        this.CastSpell("beag cradh", new uint?(client.PlayerID));
-                                        this.restartloop = true;
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                              else
-                              {
-                                foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                                {
-                                  if (player != null && player.Name.Equals(this.thename, StringComparison.OrdinalIgnoreCase) && player.IsOnScreen)
-                                  {
-                                    if (targetPlayer.aocursesplayer.Checked && !this.aocradhsbefore)
-                                    {
-                                      if (Server.StaticCharacters[player.ID].hasardcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao ard cradh"].ManaCost)
-                                        this.CastSpell("ao ard cradh", new uint?(player.ID));
-                                      if (Server.StaticCharacters[player.ID].hasmorcradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao mor cradh"].ManaCost)
-                                        this.CastSpell("ao mor cradh", new uint?(player.ID));
-                                      if (Server.StaticCharacters[player.ID].hascradh && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao cradh"].ManaCost)
-                                        this.CastSpell("ao cradh", new uint?(player.ID));
-                                      if (Server.StaticCharacters[player.ID].hasbeagcradh && !targetPlayer.beagcradhplayer.Checked && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao beag cradh"].ManaCost)
-                                        this.CastSpell("ao beag cradh", new uint?(player.ID));
-                                    }
-                                    if (targetPlayer.beagcradhplayer.Checked && !this.beagcradhbefore && !Server.StaticCharacters[player.ID].hasbeagcradh && !Server.StaticCharacters[player.ID].hascradh && !Server.StaticCharacters[player.ID].hasmorcradh && !Server.StaticCharacters[player.ID].hasardcradh && !Server.StaticCharacters[player.ID].hasdarkseal && !Server.StaticCharacters[player.ID].hasdarkerseal && !Server.StaticCharacters[player.ID].hasdemise && !Server.StaticCharacters[player.ID].hasdemonseal && (long) this.Statistics.CurrentMP > (long) Server.SpellList["beag cradh"].ManaCost)
-                                    {
-                                      this.CastSpell("beag cradh", new uint?(player.ID));
-                                      this.restartloop = true;
-                                    }
-                                  }
-                                }
-                              }
-                            }
+                            this.CastSpell(spell.Name, new uint?(client.PlayerID));
+                            break;
                           }
                         }
-                        if (this.Tab.vdisenchanter && !this.disbefore && (!this.disIsSummoned || DateTime.UtcNow.Subtract(this.distime).TotalSeconds > 361.0) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Disenchanter"].ManaCost)
+                      }
+                      if (this.Tab.allalts.varmachd && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                        this.CastSpell("armachd", new uint?(client.PlayerID));
+                      if (this.Tab.allalts.vbeann && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                      {
+                        if (this.HasSpell("mor beannaich"))
+                          this.CastSpell("mor beannaich", new uint?(client.PlayerID));
+                        else
+                          this.CastSpell("beannaich", new uint?(client.PlayerID));
+                      }
+                      if (this.Tab.allalts.vfasdeireas && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
+                        this.CastSpell("fas deireas", new uint?(client.PlayerID));
+                      if (this.Tab.allalts.vcreagneart && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                        this.CastSpell("creag neart", new uint?(client.PlayerID));
+                    }
+                  }
+                }
+                if (this.targetplayer.Count > 0)
+                {
+                  foreach (targetPlayer targetPlayer in this.targetplayer)
+                  {
+                    if (targetPlayer != null)
+                    {
+                      this.thename = targetPlayer.Text;
+                      if (this.alts.Contains((object) this.thename.ToLower()))
+                      {
+                        foreach (Client client in Server.Alts.Values.ToArray<Client>())
                         {
-                          this.disstopwalk = true;
-                          this.CastSpell("Disenchanter");
-                        }
-                        if ((this.Tab.vselfaopuinsein || this.autowalkon && this.Tab.walkao.Checked) && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (this.SpellBar.Contains((ushort) 35) || this.SpellBar.Contains((ushort) 141) || this.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
-                        {
-                          this.CastSpell("ao puinsein", new uint?(this.PlayerID));
-                          if (this.SpellBar.Contains((ushort) 35))
-                            this.SpellBar.Remove((ushort) 35);
-                          else if (this.SpellBar.Contains((ushort) 1))
-                            this.SpellBar.Remove((ushort) 1);
-                          else if (this.SpellBar.Contains((ushort) 141))
-                            this.SpellBar.Remove((ushort) 141);
-                        }
-                        if (this.Tab.vselfregen && !this.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 5"].ManaCost)
-                        {
-                          foreach (Spell spell in this.SpellBook)
+                          if (client != null)
                           {
-                            if (spell != null && spell.Name.Contains("Regeneration"))
+                            this.c = string.Equals(this.thename, client.Name, StringComparison.OrdinalIgnoreCase);
+                            if (this.c && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
                             {
-                              this.CastSpell(spell.Name, new uint?(this.PlayerID));
-                              break;
-                            }
-                          }
-                        }
-                        if (this.Tab.vselfregen && !this.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
-                          this.CastSpell("Increased Regeneration", new uint?(this.PlayerID));
-                        if (this.Tab.vselfca && !this.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 5"].ManaCost)
-                        {
-                          foreach (Spell spell in this.SpellBook)
-                          {
-                            if (spell != null && spell.Name.Contains("Counter Attack"))
-                            {
-                              this.CastSpell(spell.Name, new uint?(this.PlayerID));
-                              break;
-                            }
-                          }
-                        }
-                        if (this.Tab.vdragonsscale && !this.SpellBar.Contains((ushort) 94) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          if (!this.SpellBar.Contains((ushort) 10))
-                            this.UseItem("Dragon's Scale");
-                        }
-                        else if (this.Tab.vselfarm && !this.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
-                          this.CastSpell("armachd", new uint?(this.PlayerID));
-                        if (this.Tab.vnervestimulant && !this.SpellBar.Contains((ushort) 16) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          if (!this.SpellBar.Contains((ushort) 10))
-                            this.UseItem("Nerve Stimulant");
-                        }
-                        else if (this.Tab.vselfbean && !this.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
-                        {
-                          if (this.HasSpell("mor beannaich"))
-                            this.CastSpell("mor beannaich", new uint?(this.PlayerID));
-                          else
-                            this.CastSpell("beannaich", new uint?(this.PlayerID));
-                        }
-                        if (this.Tab.vmusclestimulant && !this.SpellBar.Contains((ushort) 52) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          if (!this.SpellBar.Contains((ushort) 10))
-                            this.UseItem("Muscle Stimulant");
-                        }
-                        else if (this.Tab.vselffasdeireas && !this.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
-                          this.CastSpell("fas deireas", new uint?(this.PlayerID));
-                        if (this.Tab.vselfcreagneart && !this.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
-                          this.CastSpell("creag neart", new uint?(this.PlayerID));
-                        if (this.Tab.vdragonsfire && !this.SpellBar.Contains((ushort) 98) && this.Statistics.CurrentMP > 0U && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name] && !this.SpellBar.Contains((ushort) 10))
-                          this.UseItem("Dragon's Fire");
-                        if (this.Tab.vselfmist && !this.SpellBar.Contains((ushort) 55) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Mist"].ManaCost)
-                          this.CastSpell("Mist");
-                        if (this.Tab.targetgroup != null)
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
-                            {
-                              if (this.Tab.targetgroup.aopuinseingroup.Checked && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                              if (targetPlayer.aopuinseinplayer.Checked && !this.aopuinseinbefore && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
                               {
                                 this.CastSpell("ao puinsein", new uint?(client.PlayerID));
                                 if (client.SpellBar.Contains((ushort) 35))
@@ -9003,58 +8906,7 @@ label_498:
                                 else if (client.SpellBar.Contains((ushort) 141))
                                   client.SpellBar.Remove((ushort) 141);
                               }
-                              if (this.Tab.targetgroup.armachdgroup.Checked && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
-                                this.CastSpell("armachd", new uint?(client.PlayerID));
-                              if (this.Tab.targetgroup.beanngroup.Checked && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
-                              {
-                                if (this.HasSpell("mor beannaich"))
-                                  this.CastSpell("mor beannaich", new uint?(client.PlayerID));
-                                else
-                                  this.CastSpell("beannaich", new uint?(client.PlayerID));
-                              }
-                              if (this.Tab.targetgroup.creagneartgroup.Checked && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
-                                this.CastSpell("creag neart", new uint?(client.PlayerID));
-                              if (this.Tab.targetgroup.fasdeireasgroup.Checked && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
-                                this.CastSpell("fas deireas", new uint?(client.PlayerID));
-                            }
-                          }
-                          foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                          {
-                            if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen)
-                            {
-                              if (this.Tab.targetgroup.aopuinseingroup.Checked && !this.aopuinseinbefore && !this.Tab.vfungusbeetleextract && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
-                                this.CastSpell("ao puinsein", new uint?(player.ID));
-                              if (this.Tab.targetgroup.armachdgroup.Checked && !Server.StaticCharacters[player.ID].hasarmachd && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
-                                this.CastSpell("armachd", new uint?(player.ID));
-                              if (this.Tab.targetgroup.beanngroup.Checked && !Server.StaticCharacters[player.ID].hasbeann && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
-                              {
-                                if (this.HasSpell("mor beannaich"))
-                                  this.CastSpell("mor beannaich", new uint?(player.ID));
-                                else
-                                  this.CastSpell("beannaich", new uint?(player.ID));
-                              }
-                              if (this.Tab.targetgroup.creagneartgroup.Checked && !Server.StaticCharacters[player.ID].hascreagneart && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
-                                this.CastSpell("creag neart", new uint?(player.ID));
-                            }
-                          }
-                        }
-                        if (this.Tab.allalts != null)
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
-                            {
-                              if (this.Tab.allalts.vaopuinsein && !this.aopuinseinbefore && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
-                              {
-                                this.CastSpell("ao puinsein", new uint?(client.PlayerID));
-                                if (client.SpellBar.Contains((ushort) 35))
-                                  client.SpellBar.Remove((ushort) 35);
-                                else if (client.SpellBar.Contains((ushort) 1))
-                                  client.SpellBar.Remove((ushort) 1);
-                                else if (client.SpellBar.Contains((ushort) 141))
-                                  client.SpellBar.Remove((ushort) 141);
-                              }
-                              if (this.Tab.allalts.vregen && !client.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
+                              if (targetPlayer.regenplayer.Checked && !client.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
                               {
                                 foreach (Spell spell in this.SpellBook)
                                 {
@@ -9065,9 +8917,9 @@ label_498:
                                   }
                                 }
                               }
-                              if (this.Tab.allalts.vregen && !client.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
+                              if (targetPlayer.regenplayer.Checked && !client.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
                                 this.CastSpell("Increased Regeneration", new uint?(client.PlayerID));
-                              if (this.Tab.allalts.vca && !client.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
+                              if (targetPlayer.caplayer.Checked && !client.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
                               {
                                 foreach (Spell spell in this.SpellBook)
                                 {
@@ -9078,346 +8930,271 @@ label_498:
                                   }
                                 }
                               }
-                              if (this.Tab.allalts.varmachd && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                              if (targetPlayer.armachdplayer.Checked && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
                                 this.CastSpell("armachd", new uint?(client.PlayerID));
-                              if (this.Tab.allalts.vbeann && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                              if (targetPlayer.beannplayer.Checked && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
                               {
                                 if (this.HasSpell("mor beannaich"))
                                   this.CastSpell("mor beannaich", new uint?(client.PlayerID));
                                 else
                                   this.CastSpell("beannaich", new uint?(client.PlayerID));
                               }
-                              if (this.Tab.allalts.vfasdeireas && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
+                              if (targetPlayer.fasdeireasplayer.Checked && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
                                 this.CastSpell("fas deireas", new uint?(client.PlayerID));
-                              if (this.Tab.allalts.vcreagneart && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                              if (targetPlayer.creagneartplayer.Checked && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
                                 this.CastSpell("creag neart", new uint?(client.PlayerID));
                             }
                           }
                         }
-                        if (this.targetplayer.Count > 0)
+                      }
+                      else
+                      {
+                        foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
                         {
-                          foreach (targetPlayer targetPlayer in this.targetplayer)
+                          if (player != null && player.Name.Equals(this.thename, StringComparison.OrdinalIgnoreCase) && player.IsOnScreen)
                           {
-                            if (targetPlayer != null)
+                            if (targetPlayer.aopuinseinplayer.Checked && !this.aopuinseinbefore && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
+                              this.CastSpell("ao puinsein", new uint?(player.ID));
+                            if (targetPlayer.regenplayer.Checked && !Server.StaticCharacters[player.ID].hasregen && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
                             {
-                              this.thename = targetPlayer.Text;
-                              if (this.alts.Contains((object) this.thename.ToLower()))
+                              foreach (Spell spell in this.SpellBook)
                               {
-                                foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                                if (spell != null && spell.Name.Contains("Regeneration"))
                                 {
-                                  if (client != null)
-                                  {
-                                    this.c = string.Equals(this.thename, client.Name, StringComparison.OrdinalIgnoreCase);
-                                    if (this.c && this.Characters.ContainsKey(client.PlayerID) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12)
-                                    {
-                                      if (targetPlayer.aopuinseinplayer.Checked && !this.aopuinseinbefore && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
-                                      {
-                                        this.CastSpell("ao puinsein", new uint?(client.PlayerID));
-                                        if (client.SpellBar.Contains((ushort) 35))
-                                          client.SpellBar.Remove((ushort) 35);
-                                        else if (client.SpellBar.Contains((ushort) 1))
-                                          client.SpellBar.Remove((ushort) 1);
-                                        else if (client.SpellBar.Contains((ushort) 141))
-                                          client.SpellBar.Remove((ushort) 141);
-                                      }
-                                      if (targetPlayer.regenplayer.Checked && !client.SpellBar.Contains((ushort) 146) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
-                                      {
-                                        foreach (Spell spell in this.SpellBook)
-                                        {
-                                          if (spell != null && spell.Name.Contains("Regeneration"))
-                                          {
-                                            this.CastSpell(spell.Name, new uint?(client.PlayerID));
-                                            break;
-                                          }
-                                        }
-                                      }
-                                      if (targetPlayer.regenplayer.Checked && !client.SpellBar.Contains((ushort) 181) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Increased Regeneration"].ManaCost)
-                                        this.CastSpell("Increased Regeneration", new uint?(client.PlayerID));
-                                      if (targetPlayer.caplayer.Checked && !client.SpellBar.Contains((ushort) 150) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
-                                      {
-                                        foreach (Spell spell in this.SpellBook)
-                                        {
-                                          if (spell != null && spell.Name.Contains("Counter Attack"))
-                                          {
-                                            this.CastSpell(spell.Name, new uint?(client.PlayerID));
-                                            break;
-                                          }
-                                        }
-                                      }
-                                      if (targetPlayer.armachdplayer.Checked && !client.SpellBar.Contains((ushort) 94) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
-                                        this.CastSpell("armachd", new uint?(client.PlayerID));
-                                      if (targetPlayer.beannplayer.Checked && !client.SpellBar.Contains((ushort) 16) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
-                                      {
-                                        if (this.HasSpell("mor beannaich"))
-                                          this.CastSpell("mor beannaich", new uint?(client.PlayerID));
-                                        else
-                                          this.CastSpell("beannaich", new uint?(client.PlayerID));
-                                      }
-                                      if (targetPlayer.fasdeireasplayer.Checked && !client.SpellBar.Contains((ushort) 52) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["fas deireas"].ManaCost)
-                                        this.CastSpell("fas deireas", new uint?(client.PlayerID));
-                                      if (targetPlayer.creagneartplayer.Checked && !client.SpellBar.Contains((ushort) 13) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
-                                        this.CastSpell("creag neart", new uint?(client.PlayerID));
-                                    }
-                                  }
+                                  this.CastSpell(spell.Name, new uint?(player.ID));
+                                  break;
                                 }
                               }
+                            }
+                            if (targetPlayer.caplayer.Checked && !Server.StaticCharacters[player.ID].hasca && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
+                            {
+                              foreach (Spell spell in this.SpellBook)
+                              {
+                                if (spell != null && spell.Name.Contains("Counter Attack"))
+                                {
+                                  this.CastSpell(spell.Name, new uint?(player.ID));
+                                  break;
+                                }
+                              }
+                            }
+                            if (targetPlayer.armachdplayer.Checked && !Server.StaticCharacters[player.ID].hasarmachd && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
+                              this.CastSpell("armachd", new uint?(player.ID));
+                            if (targetPlayer.beannplayer.Checked && !Server.StaticCharacters[player.ID].hasbeann && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
+                            {
+                              if (this.HasSpell("mor beannaich"))
+                                this.CastSpell("mor beannaich", new uint?(player.ID));
                               else
-                              {
-                                foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                                {
-                                  if (player != null && player.Name.Equals(this.thename, StringComparison.OrdinalIgnoreCase) && player.IsOnScreen)
-                                  {
-                                    if (targetPlayer.aopuinseinplayer.Checked && !this.aopuinseinbefore && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison) && (long) this.Statistics.CurrentMP > (long) Server.SpellList["ao puinsein"].ManaCost)
-                                      this.CastSpell("ao puinsein", new uint?(player.ID));
-                                    if (targetPlayer.regenplayer.Checked && !Server.StaticCharacters[player.ID].hasregen && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Regeneration 1"].ManaCost)
-                                    {
-                                      foreach (Spell spell in this.SpellBook)
-                                      {
-                                        if (spell != null && spell.Name.Contains("Regeneration"))
-                                        {
-                                          this.CastSpell(spell.Name, new uint?(player.ID));
-                                          break;
-                                        }
-                                      }
-                                    }
-                                    if (targetPlayer.caplayer.Checked && !Server.StaticCharacters[player.ID].hasca && (long) this.Statistics.CurrentMP > (long) Server.SpellList["Counter Attack 1"].ManaCost)
-                                    {
-                                      foreach (Spell spell in this.SpellBook)
-                                      {
-                                        if (spell != null && spell.Name.Contains("Counter Attack"))
-                                        {
-                                          this.CastSpell(spell.Name, new uint?(player.ID));
-                                          break;
-                                        }
-                                      }
-                                    }
-                                    if (targetPlayer.armachdplayer.Checked && !Server.StaticCharacters[player.ID].hasarmachd && (long) this.Statistics.CurrentMP > (long) Server.SpellList["armachd"].ManaCost)
-                                      this.CastSpell("armachd", new uint?(player.ID));
-                                    if (targetPlayer.beannplayer.Checked && !Server.StaticCharacters[player.ID].hasbeann && (long) this.Statistics.CurrentMP > (long) Server.SpellList["mor beannaich"].ManaCost)
-                                    {
-                                      if (this.HasSpell("mor beannaich"))
-                                        this.CastSpell("mor beannaich", new uint?(player.ID));
-                                      else
-                                        this.CastSpell("beannaich", new uint?(player.ID));
-                                    }
-                                    if (targetPlayer.creagneartplayer.Checked && !Server.StaticCharacters[player.ID].hascreagneart && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
-                                      this.CastSpell("creag neart", new uint?(player.ID));
-                                  }
-                                }
-                              }
+                                this.CastSpell("beannaich", new uint?(player.ID));
                             }
+                            if (targetPlayer.creagneartplayer.Checked && !Server.StaticCharacters[player.ID].hascreagneart && (long) this.Statistics.CurrentMP > (long) Server.SpellList["creag neart"].ManaCost)
+                              this.CastSpell("creag neart", new uint?(player.ID));
                           }
                         }
-                        if (this.Tab.HideTrinketOptions.vanishingelixir.Checked && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name] && this.HasItem("Vanishing Elixir") && this.Statistics.CurrentMP > 0U)
-                        {
-                          foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                          {
-                            if (player != null && (int) player.ID != (int) this.PlayerID && this.GroupMembers.Contains(player.Name) && player.Body != (byte) 0 && player.IsOnScreen && (this.Tab.HideTrinketOptions.namelist.Items.Contains((object) player.Name.ToLower()) || this.Tab.HideTrinketOptions.hideallgroup.Checked))
-                            {
-                              this.UseItem("Vanishing Elixir");
-                              if (this.Tab.selfhide.Checked)
-                                this.MacroCast("Hide", new uint?());
-                            }
-                          }
-                        }
-                        if (this.Tab.vmantidscent && !this.SpellBar.Contains((ushort) 113) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          if (this.HasItem("Potent Mantid Scent"))
-                          {
-                            if (this.mantidtimer == DateTime.MinValue || DateTime.UtcNow.Subtract(this.mantidtimer).Seconds > 10)
-                            {
-                              this.UseItem("Potent Mantid Scent");
-                              this.mantidtimer = DateTime.UtcNow;
-                            }
-                          }
-                          else if (this.HasItem("Mantid Scent") && (this.mantidtimer == DateTime.MinValue || DateTime.UtcNow.Subtract(this.mantidtimer).Seconds > 10))
-                          {
-                            this.UseItem("Mantid Scent");
-                            this.mantidtimer = DateTime.UtcNow;
-                          }
-                        }
-                        if (this.Tab.vmusclestimulant && this.HasItem("Muscle Stimulant") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 52) && this.Statistics.CurrentMP > 0U)
-                              this.UseItem("Muscle Stimulant");
-                          }
-                        }
-                        if (this.Tab.vnervestimulant && this.HasItem("Nerve Stimulant") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 16) && this.Statistics.CurrentMP > 0U)
-                              this.UseItem("Nerve Stimulant");
-                          }
-                        }
-                        if (this.Tab.vdragonsscale && this.HasItem("Dragon's Scale") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 94) && this.Statistics.CurrentMP > 0U)
-                              this.UseItem("Dragon's Scale");
-                          }
-                        }
-                        if (this.Tab.vdragonsfire && this.HasItem("Dragon's Fire") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 98) && this.Statistics.CurrentMP > 0U)
-                              this.UseItem("Dragon's Fire");
-                          }
-                        }
-                        if ((this.Tab.vwakescroll || this.autowalkon && this.Tab.walkao.Checked) && this.HasItem("Wake Scroll") && !this.wakescrollbefore && this.MapInfo.Number != 509 && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && (client.SpellBar.Contains((ushort) 90) || client.SpellBar.Contains((ushort) 101)) && this.Statistics.CurrentMP > 1000U)
-                            {
-                              this.UseItem("Wake Scroll");
-                              Thread.Sleep(200);
-                            }
-                          }
-                          foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                          {
-                            if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen && (Server.StaticCharacters[player.ID].haspramh || Server.StaticCharacters[player.ID].haswff) && this.Statistics.CurrentMP > 1000U)
-                            {
-                              this.UseItem("Wake Scroll");
-                              Thread.Sleep(200);
-                            }
-                          }
-                        }
-                        if ((this.Tab.vfungusbeetleextract || this.autowalkon && this.Tab.walkao.Checked) && this.HasItem("Fungus Beetle Extract") && !this.aopuinseinbefore && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
-                        {
-                          if ((this.SpellBar.Contains((ushort) 35) || this.SpellBar.Contains((ushort) 141) || this.SpellBar.Contains((ushort) 1)) && this.Statistics.CurrentMP > 2U)
-                            this.UseItem("Fungus Beetle Extract");
-                          foreach (Client client in Server.Alts.Values.ToArray<Client>())
-                          {
-                            if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && this.Statistics.CurrentMP > 2U)
-                              this.UseItem("Fungus Beetle Extract");
-                          }
-                          foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
-                          {
-                            if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison || Server.StaticCharacters[player.ID].hasct) && this.Statistics.CurrentMP > 2U)
-                              this.UseItem("Fungus Beetle Extract");
-                          }
-                        }
-                        if (this.loot && !this.lootbefore)
-                          this.LootItems();
-                        if (this.Tab.vdropitemson && !this.dropbefore && this.Tab.dropitemslist.Items.Count > 0)
-                        {
-                          foreach (object obj in this.Tab.dropitemslist.Items)
-                          {
-                            if (obj != null)
-                              this.DropItems(obj.ToString());
-                          }
-                        }
-
-                        if ((!this.Tab.dojo.Checked || this.MapInfo.Name.Contains("Training Dojo")) && !this.autowalkon)
-                        {
-                          if (this.Tab.MacroOptions.macroassail.Checked && !this.castingoneline)
-                          {
-                            this.Assail();
-                            if (this.MainTarget != null && this.MainTarget != this.MonsterInFront() && this.MainTarget.DistanceFrom(this.ServerLocation) == 1 && !this.ImFacingMonster && !this.ImFacingAnything)
-                              this.FaceTarget(this.MainTarget.Location);
-                          }
-                          if (this.Tab.MacroOptions.macrospell.Checked && this.Tab.MacroOptions.macrospellslistview.Items.Count > 0)
-                          {
-                            ListViewItem listViewItem1 = this.Tab.MacroOptions.macrospellslistview.Items[0];
-                            foreach (ListViewItem listViewItem2 in this.Tab.MacroOptions.macrospellslistview.Items)
-                            {
-                              if (listViewItem2 != null && listViewItem2.Text != string.Empty)
-                              {
-                                if (listViewItem2.Text.StartsWith("Regeneration "))
-                                {
-                                  if (!this.SpellBar.Contains((ushort) 146))
-                                    this.MacroCast(listViewItem2.Text, new uint?(this.PlayerID));
-                                  foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
-                                  {
-                                    if (character != null && character.IsOnScreen && (character is Player && (character as Player).Body != (byte) 0 || character is Npc && (character as Npc).Type == Npc.NpcType.NormalMonster) && !character.hasregen)
-                                      this.MacroCast(listViewItem2.Text, new uint?(character.ID));
-                                  }
-                                }
-                                if (listViewItem2.Text.StartsWith("Counter Attack "))
-                                {
-                                  if (!this.SpellBar.Contains((ushort) 150))
-                                    this.MacroCast(listViewItem2.Text, new uint?(this.PlayerID));
-                                  foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
-                                  {
-                                    if (character != null && character.IsOnScreen && character is Player && (character as Player).Body != (byte) 0 && !character.hasca)
-                                      this.MacroCast(listViewItem2.Text, new uint?(character.ID));
-                                  }
-                                }
-                              }
-                            }
-                            string text1 = listViewItem1.Text;
-                            string text2 = listViewItem1.SubItems[3].Text;
-                            if (this.HasSpell(text1) && !text1.StartsWith("Regeneration ") && !text1.StartsWith("Counter Attack "))
-                            {
-                              if (text1.Contains("puinneag spiorad"))
-                              {
-                                foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
-                                {
-                                  if (character != null && character.IsOnScreen && character is Player && this.GroupMembers.Contains(character.Name))
-                                  {
-                                    this.MacroCast(text1, new uint?(character.ID));
-                                    break;
-                                  }
-                                }
-                              }
-                              else if (text2 == "none")
-                                this.MacroCast(text1, new uint?());
-                              else if (text2 == "self")
-                                this.MacroCast(text1, new uint?(this.PlayerID));
-                              else if (text2 == "monster")
-                              {
-                                foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
-                                {
-                                  if (character != null && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster) && character.IsOnScreen)
-                                  {
-                                    this.MacroCast(text1, new uint?(character.ID));
-                                    break;
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                        if (this.Tab.reequiparmor.Checked && DateTime.UtcNow.Subtract(this.removedarmordelay).TotalSeconds > 2.0 && this.removedarmor != string.Empty && this.armornow == string.Empty && !this.manualremovedarmor && this.HasItem(this.removedarmor))
-                        {
-                          this.UseItem(this.removedarmor);
-                          this.removedarmordelay = DateTime.UtcNow;
-                        }
-                        if (this.Tab.equipweapon.Checked && (this.Tab.assail.Checked || this.Tab.useskills.Checked || this.Tab.asrs.Checked) && !this.SpellBar.Contains((ushort) 10) && ((IEnumerable<Npc>) this.NearbyNormalMonsters()).Count<Npc>() > 0 && this.BestWeapon() != string.Empty && this.staffnow != this.BestWeapon() && (this.EquipWeaponDelay == DateTime.MinValue || DateTime.UtcNow.Subtract(this.EquipWeaponDelay).TotalMilliseconds > 2000.0))
-                        {
-                          if ((int) this.ClientForm - 16384 > 0 && this.Tab.druidform.Checked && this.druidform != null)
-                            this.MacroCast(this.druidform.Name, new uint?());
-                          this.UseItem(this.BestWeapon());
-                          this.EquipWeaponDelay = DateTime.UtcNow;
-                        }
-                        if (this.Tab.openveltchest.Checked && this.HasItem("Treasure Chest") && (this.openveltchestdelay == DateTime.MinValue || DateTime.UtcNow.Subtract(this.openveltchestdelay).TotalMilliseconds > 3000.0) && !this.ItemStackFull(1476, 20U) && !this.InventoryIsFull() && ((IEnumerable<Npc>)this.NearbyNormalMonsters()).Count<Npc>() == 0)
-                        {
-                          this.UseItem("Treasure Chest");
-                          this.openveltchestdelay = DateTime.UtcNow;
-                        }
-                        if (this.Tab.openLARaffle.Checked && this.HasItem("LA Raffle") && !this.InventoryIsFull() && ((IEnumerable<Npc>)this.NearbyNormalMonsters()).Count<Npc>() == 0)
-                        {
-                          this.UseItem("LA Raffle");
-                        }
-                        this.stopwalk = false;
                       }
                     }
                   }
                 }
+                if (this.Tab.HideTrinketOptions.vanishingelixir.Checked && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name] && this.HasItem("Vanishing Elixir") && this.Statistics.CurrentMP > 0U)
+                {
+                  foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                  {
+                    if (player != null && (int) player.ID != (int) this.PlayerID && this.GroupMembers.Contains(player.Name) && player.Body != (byte) 0 && player.IsOnScreen && (this.Tab.HideTrinketOptions.namelist.Items.Contains((object) player.Name.ToLower()) || this.Tab.HideTrinketOptions.hideallgroup.Checked))
+                    {
+                      this.UseItem("Vanishing Elixir");
+                      if (this.Tab.selfhide.Checked)
+                        this.MacroCast("Hide", new uint?());
+                    }
+                  }
+                }
+                if (this.Tab.vmantidscent && !this.SpellBar.Contains((ushort) 113) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  if (this.HasItem("Potent Mantid Scent"))
+                  {
+                    if (this.mantidtimer == DateTime.MinValue || DateTime.UtcNow.Subtract(this.mantidtimer).Seconds > 10)
+                    {
+                      this.UseItem("Potent Mantid Scent");
+                      this.mantidtimer = DateTime.UtcNow;
+                    }
+                  }
+                  else if (this.HasItem("Mantid Scent") && (this.mantidtimer == DateTime.MinValue || DateTime.UtcNow.Subtract(this.mantidtimer).Seconds > 10))
+                  {
+                    this.UseItem("Mantid Scent");
+                    this.mantidtimer = DateTime.UtcNow;
+                  }
+                }
+                if (this.Tab.vmusclestimulant && this.HasItem("Muscle Stimulant") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 52) && this.Statistics.CurrentMP > 0U)
+                      this.UseItem("Muscle Stimulant");
+                  }
+                }
+                if (this.Tab.vnervestimulant && this.HasItem("Nerve Stimulant") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 16) && this.Statistics.CurrentMP > 0U)
+                      this.UseItem("Nerve Stimulant");
+                  }
+                }
+                if (this.Tab.vdragonsscale && this.HasItem("Dragon's Scale") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 94) && this.Statistics.CurrentMP > 0U)
+                      this.UseItem("Dragon's Scale");
+                  }
+                }
+                if (this.Tab.vdragonsfire && this.HasItem("Dragon's Fire") && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && !client.SpellBar.Contains((ushort) 98) && this.Statistics.CurrentMP > 0U)
+                      this.UseItem("Dragon's Fire");
+                  }
+                }
+                if ((this.Tab.vwakescroll || this.autowalkon && this.Tab.walkao.Checked) && this.HasItem("Wake Scroll") && !this.wakescrollbefore && this.MapInfo.Number != 509 && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && (client.SpellBar.Contains((ushort) 90) || client.SpellBar.Contains((ushort) 101)) && this.Statistics.CurrentMP > 1000U)
+                    {
+                      this.UseItem("Wake Scroll");
+                      Thread.Sleep(200);
+                    }
+                  }
+                  foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                  {
+                    if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen && (Server.StaticCharacters[player.ID].haspramh || Server.StaticCharacters[player.ID].haswff) && this.Statistics.CurrentMP > 1000U)
+                    {
+                      this.UseItem("Wake Scroll");
+                      Thread.Sleep(200);
+                    }
+                  }
+                }
+                if ((this.Tab.vfungusbeetleextract || this.autowalkon && this.Tab.walkao.Checked) && this.HasItem("Fungus Beetle Extract") && !this.aopuinseinbefore && !this.SpellBar.Contains((ushort) 10) && Server.DARegged.ContainsKey(this.Name) && Server.DARegged[this.Name])
+                {
+                  if ((this.SpellBar.Contains((ushort) 35) || this.SpellBar.Contains((ushort) 141) || this.SpellBar.Contains((ushort) 1)) && this.Statistics.CurrentMP > 2U)
+                    this.UseItem("Fungus Beetle Extract");
+                  foreach (Client client in Server.Alts.Values.ToArray<Client>())
+                  {
+                    if (client != null && client.Name != this.Name && this.Characters.ContainsKey(client.PlayerID) && this.GroupMembers.Contains(client.Name) && this.Characters[client.PlayerID].IsOnScreen && this.ServerLocation.DistanceFrom(this.Characters[client.PlayerID].Location) <= 12 && (client.SpellBar.Contains((ushort) 35) || client.SpellBar.Contains((ushort) 141) || client.SpellBar.Contains((ushort) 1)) && this.Statistics.CurrentMP > 2U)
+                      this.UseItem("Fungus Beetle Extract");
+                  }
+                  foreach (Player player in (IEnumerable<Player>) ((IEnumerable<Player>) this.NearbyNonAlts()).OrderBy<Player, int>((Func<Player, int>) (e => e.Location.DistanceFrom(this.ServerLocation))))
+                  {
+                    if (player != null && this.GroupMembers.Contains(player.Name) && player.IsOnScreen && (Server.StaticCharacters[player.ID].hasswirlpoison || Server.StaticCharacters[player.ID].hasbubblepoison || Server.StaticCharacters[player.ID].hasct) && this.Statistics.CurrentMP > 2U)
+                      this.UseItem("Fungus Beetle Extract");
+                  }
+                }
+                if (this.loot && !this.lootbefore)
+                  this.LootItems();
+                if (this.Tab.vdropitemson && !this.dropbefore && this.Tab.dropitemslist.Items.Count > 0)
+                {
+                  foreach (object obj in this.Tab.dropitemslist.Items)
+                  {
+                    if (obj != null)
+                      this.DropItems(obj.ToString());
+                  }
+                }
+
+                if ((!this.Tab.dojo.Checked || this.MapInfo.Name.Contains("Training Dojo")) && !this.autowalkon)
+                {
+                  if (this.Tab.MacroOptions.macroassail.Checked && !this.castingoneline)
+                  {
+                    this.Assail();
+                    if (this.MainTarget != null && this.MainTarget != this.MonsterInFront() && this.MainTarget.DistanceFrom(this.ServerLocation) == 1 && !this.ImFacingMonster && !this.ImFacingAnything)
+                      this.FaceTarget(this.MainTarget.Location);
+                  }
+                  if (this.Tab.MacroOptions.macrospell.Checked && this.Tab.MacroOptions.macrospellslistview.Items.Count > 0)
+                  {
+                    ListViewItem listViewItem1 = this.Tab.MacroOptions.macrospellslistview.Items[0];
+                    foreach (ListViewItem listViewItem2 in this.Tab.MacroOptions.macrospellslistview.Items)
+                    {
+                      if (listViewItem2 != null && listViewItem2.Text != string.Empty)
+                      {
+                        if (listViewItem2.Text.StartsWith("Regeneration "))
+                        {
+                          if (!this.SpellBar.Contains((ushort) 146))
+                            this.MacroCast(listViewItem2.Text, new uint?(this.PlayerID));
+                          foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
+                          {
+                            if (character != null && character.IsOnScreen && (character is Player && (character as Player).Body != (byte) 0 || character is Npc && (character as Npc).Type == Npc.NpcType.NormalMonster) && !character.hasregen)
+                              this.MacroCast(listViewItem2.Text, new uint?(character.ID));
+                          }
+                        }
+                        if (listViewItem2.Text.StartsWith("Counter Attack "))
+                        {
+                          if (!this.SpellBar.Contains((ushort) 150))
+                            this.MacroCast(listViewItem2.Text, new uint?(this.PlayerID));
+                          foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
+                          {
+                            if (character != null && character.IsOnScreen && character is Player && (character as Player).Body != (byte) 0 && !character.hasca)
+                              this.MacroCast(listViewItem2.Text, new uint?(character.ID));
+                          }
+                        }
+                      }
+                    }
+                    string text1 = listViewItem1.Text;
+                    string text2 = listViewItem1.SubItems[3].Text;
+                    if (this.HasSpell(text1) && !text1.StartsWith("Regeneration ") && !text1.StartsWith("Counter Attack "))
+                    {
+                      if (text1.Contains("puinneag spiorad"))
+                      {
+                        foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
+                        {
+                          if (character != null && character.IsOnScreen && character is Player && this.GroupMembers.Contains(character.Name))
+                          {
+                            this.MacroCast(text1, new uint?(character.ID));
+                            break;
+                          }
+                        }
+                      }
+                      else if (text2 == "none")
+                        this.MacroCast(text1, new uint?());
+                      else if (text2 == "self")
+                        this.MacroCast(text1, new uint?(this.PlayerID));
+                      else if (text2 == "monster")
+                      {
+                        foreach (Character character in (IEnumerable<Character>) this.Characters.Values.OrderBy<Character, int>((Func<Character, int>) (c => c.Location.DistanceFrom(this.ServerLocation))))
+                        {
+                          if (character != null && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster) && character.IsOnScreen)
+                          {
+                            this.MacroCast(text1, new uint?(character.ID));
+                            break;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                if (this.Tab.reequiparmor.Checked && DateTime.UtcNow.Subtract(this.removedarmordelay).TotalSeconds > 2.0 && this.removedarmor != string.Empty && this.armornow == string.Empty && !this.manualremovedarmor && this.HasItem(this.removedarmor))
+                {
+                  this.UseItem(this.removedarmor);
+                  this.removedarmordelay = DateTime.UtcNow;
+                }
+                if (this.Tab.equipweapon.Checked && (this.Tab.assail.Checked || this.Tab.useskills.Checked || this.Tab.asrs.Checked) && !this.SpellBar.Contains((ushort) 10) && ((IEnumerable<Npc>) this.NearbyNormalMonsters()).Count<Npc>() > 0 && this.BestWeapon() != string.Empty && this.staffnow != this.BestWeapon() && (this.EquipWeaponDelay == DateTime.MinValue || DateTime.UtcNow.Subtract(this.EquipWeaponDelay).TotalMilliseconds > 2000.0))
+                {
+                  if ((int) this.ClientForm - 16384 > 0 && this.Tab.druidform.Checked && this.druidform != null)
+                    this.MacroCast(this.druidform.Name, new uint?());
+                  this.UseItem(this.BestWeapon());
+                  this.EquipWeaponDelay = DateTime.UtcNow;
+                }
+                if (this.Tab.openveltchest.Checked && this.HasItem("Treasure Chest") && (this.openveltchestdelay == DateTime.MinValue || DateTime.UtcNow.Subtract(this.openveltchestdelay).TotalMilliseconds > 3000.0) && !this.ItemStackFull(1476, 20U) && !this.InventoryIsFull() && ((IEnumerable<Npc>)this.NearbyNormalMonsters()).Count<Npc>() == 0)
+                {
+                  this.UseItem("Treasure Chest");
+                  this.openveltchestdelay = DateTime.UtcNow;
+                }
+                if (this.Tab.openLARaffle.Checked && this.HasItem("LA Raffle") && !this.InventoryIsFull() && ((IEnumerable<Npc>)this.NearbyNormalMonsters()).Count<Npc>() == 0)
+                {
+                  this.UseItem("LA Raffle");
+                }
+                this.stopwalk = false;
               }
             }
           }
         }
-        catch
-        {
-        }
-label_996:
-        Thread.Sleep(50);
       }
     }
 
@@ -14720,9 +14497,8 @@ label_860:
           {
             this.mainProc = process;
             Rect rectangle = new Rect();
-            if (!User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
-              break;
-            this.windowSize = rectangle.Width <= 1200 ? 1 : 2;
+            if (User32.GetWindowRect(this.mainProc.MainWindowHandle, out rectangle))
+              this.windowSize = rectangle.Width <= 1200 ? 1 : 2;
             break;
           }
         }
@@ -14770,15 +14546,7 @@ label_860:
           }
         }
 
-        //if (SpeakCommandThread != null && SpeakCommandThread.IsAlive)
-        //{
-        //  if (!SpeakCommandThread.Join(2000))
-        //  {
-        //    Console.WriteLine($"Speak command thread of {Name} did not exit in a timely manner, aborting.");
-        //  }
-        //}
-
-        _cts.Cancel();
+        _cts.Cancel(); // cancel running tasks
 
         if (EntityNameThread != null && EntityNameThread.IsAlive)
         {
@@ -16836,49 +16604,43 @@ label_860:
           client?.SendMessage(message);
       }
       else
-        this.SendMessage(message);
+        this.SendMessage(message); 
     }
+
 
     public void BestAites()
     {
-      int num = 0;
+      Dictionary<string, bool> aites = new Dictionary<string, bool>
+      {
+        { "ard naomh aite", false },
+        { "mor naomh aite", false },
+        { "naomh aite", false },
+        { "beag naomh aite", false },
+      };
+
+      bool aiteFound = false;
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("ard naomh aite"))
-        {
-          this.Tab.selfaitetype.Items.Add((object) spell.Name);
-          this.YourAites.Add(spell.Name);
-          ++num;
-        }
+        if (spell is null) continue;
+
+        if (aites.ContainsKey(spell.Name))
+          aites[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in aites.Keys)
       {
-        if (spell != null && spell.Name.Equals("mor naomh aite"))
+        if (aites[name] == true)
         {
-          this.Tab.selfaitetype.Items.Add((object) spell.Name);
-          this.YourAites.Add(spell.Name);
-          ++num;
+          Tab.selfaitetype.Items.Add(name);
+          YourAites.Add(name);
+          aiteFound = true;
         }
       }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("naomh aite"))
-        {
-          this.Tab.selfaitetype.Items.Add((object) spell.Name);
-          this.YourAites.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag naomh aite"))
-        {
-          this.Tab.selfaitetype.Items.Add((object) spell.Name);
-          this.YourAites.Add(spell.Name);
-          ++num;
-        }
-      }
-      if (num > 0)
+
+      if (aiteFound)
       {
         this.Tab.selfaitetype.SelectedIndex = 0;
       }
@@ -16892,44 +16654,37 @@ label_860:
 
     public void BestFases()
     {
-      int num = 0;
+      Dictionary<string, bool> fases = new Dictionary<string, bool>
+      {
+        { "ard fas nadur", false },
+        { "mor fas nadur", false },
+        { "fas nadur", false },
+        { "beag fas nadur", false },
+      };
+
+      bool fasFound = false;
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("ard fas nadur"))
-        {
-          this.Tab.selffastype.Items.Add((object) spell.Name);
-          this.YourFases.Add(spell.Name);
-          ++num;
-        }
+        if (spell is null) continue;
+
+        if (fases.ContainsKey(spell.Name))
+          fases[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in fases.Keys)
       {
-        if (spell != null && spell.Name.Equals("mor fas nadur"))
+        if (fases[name] == true)
         {
-          this.Tab.selffastype.Items.Add((object) spell.Name);
-          this.YourFases.Add(spell.Name);
-          ++num;
+          Tab.selffastype.Items.Add(name);
+          YourFases.Add(name);
+          fasFound = true;
         }
       }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("fas nadur"))
-        {
-          this.Tab.selffastype.Items.Add((object) spell.Name);
-          this.YourFases.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag fas nadur"))
-        {
-          this.Tab.selffastype.Items.Add((object) spell.Name);
-          this.YourFases.Add(spell.Name);
-          ++num;
-        }
-      }
-      if (num > 0)
+
+      if (fasFound)
       {
         this.Tab.selffastype.SelectedIndex = 0;
       }
@@ -16943,415 +16698,282 @@ label_860:
 
     public void BestIocs()
     {
-      int num = 0;
+      Dictionary<string, bool> iocComs = new Dictionary<string, bool>
+      {
+        { "ard ioc comlha", false },
+        { "mor ioc comlha", false },
+        { "ioc comlha", false },
+        { "beag ioc comlha", false },
+      };
+
+      Dictionary<string, bool> iocs = new Dictionary<string, bool>
+      {
+        { "spirit essence", false },
+        { "nuadhaich", false },
+        { "ard ioc", false },
+        { "mor ioc", false },
+        { "ioc", false },
+        { "beag ioc", false },
+      };
+
+      bool iocFound = false;
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("ard ioc comlha"))
+        if (spell is null) continue;
+
+        if (iocComs.ContainsKey(spell.Name))
+          iocComs[spell.Name] = true;
+      }
+
+      // Add them in the defined order
+      foreach (string name in iocComs.Keys)
+      {
+        if (iocComs[name] == true)
         {
-          this.YourGIocs.Add(spell.Name);
-          ++num;
+          YourGIocs.Add(name);
+          iocFound = true;
         }
       }
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("mor ioc comlha"))
+        if (spell is null) continue;
+
+        if (iocs.ContainsKey(spell.Name))
+          iocs[spell.Name] = true;
+      }
+
+      // Add them in the defined order
+      foreach (string name in iocs.Keys)
+      {
+        if (iocs[name] == true)
         {
-          this.YourGIocs.Add(spell.Name);
-          ++num;
+          Tab.ioctype.Items.Add(name);
+          YourGIocs.Add(name);
+          YourIocs.Add(name);
+          iocFound = true;
         }
       }
-      foreach (Spell spell in this.SpellBook)
+
+      if (iocFound)
       {
-        if (spell != null && spell.Name.Equals("ioc comlha"))
-        {
-          this.YourGIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag ioc comlha"))
-        {
-          this.YourGIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Spirit Essence"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("nuadhaich"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("ard ioc"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("mor ioc"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("ioc"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag ioc"))
-        {
-          this.Tab.ioctype.Items.Add((object) spell.Name);
-          this.YourGIocs.Add(spell.Name);
-          this.YourIocs.Add(spell.Name);
-          ++num;
-        }
-      }
-      if (num > 0)
-      {
-        this.Tab.ioctype.SelectedIndex = 0;
+        Tab.ioctype.SelectedIndex = 0;
       }
       else
       {
-        this.Tab.iocself.Checked = false;
-        this.Tab.iocself.Enabled = false;
-        this.Tab.ioctype.Enabled = false;
+        Tab.iocself.Checked = false;
+        Tab.iocself.Enabled = false;
+        Tab.ioctype.Enabled = false;
       }
     }
+
 
     public void BestDions()
     {
-      int num = 0;
+      Dictionary<string, bool> dions = new Dictionary<string, bool>
+      {
+        { "Iron Skin", false },
+        { "mor dion", false },
+        { "Wings of Protection", false },
+        { "Draco Stance", false },
+        { "dion", false },
+        { "Stone Skin", false },
+      };
+
+      bool dionFound = false;
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("Iron Skin"))
-        {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
-        }
+        if (spell is null) continue;
+
+        if (dions.ContainsKey(spell.Name))
+          dions[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in dions.Keys)
       {
-        if (spell != null && spell.Name.Equals("mor dion"))
+        if (dions[name] == true)
         {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
+          Tab.diontype.Items.Add(name);
+          YourDions.Add(name);
+          dionFound = true;
         }
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add the glowing stone item (not spell) if it is the inventory
+      foreach (Item item in Inventory)
       {
-        if (spell != null && spell.Name.Equals("Wings of Protection"))
+        if (item is null) continue;
+
+        if (item.Name.Equals("Glowing Stone"))
         {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
+          Tab.diontype.Items.Add(item.Name);
+          dionFound = true;
         }
       }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Draco Stance"))
-        {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("dion"))
-        {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Stone Skin"))
-        {
-          this.Tab.diontype.Items.Add((object) spell.Name);
-          ++num;
-        }
-      }
-      foreach (Item obj in this.Inventory)
-      {
-        if (obj != null && obj.Name.Equals("Glowing Stone"))
-        {
-          this.Tab.diontype.Items.Add((object) obj.Name);
-          ++num;
-        }
-      }
-      if (num <= 0)
-        return;
-      this.Tab.diontype.SelectedIndex = 0;
+      
+      if (dionFound)
+        this.Tab.diontype.SelectedIndex = 0;
+
     }
+
 
     public void BestCradhs()
     {
+      Dictionary<string, bool> cradhs = new Dictionary<string, bool>
+      {
+        { "Demon Seal", false },
+        { "Demise", false },
+        { "Darker Seal", false },
+        { "Dark Seal", false },
+        { "ard cradh", false },
+        { "mor cradh", false },
+        { "cradh", false },
+        { "beag cradh", false },
+      };
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("Demon Seal"))
-          this.YourCradhs.Add(spell.Name);
+        if (spell is null) continue;
+
+        if (cradhs.ContainsKey(spell.Name))
+          cradhs[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in cradhs.Keys)
       {
-        if (spell != null && spell.Name.Equals("Demise"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Darker Seal"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Dark Seal"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("ard cradh"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("mor cradh"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("cradh"))
-          this.YourCradhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag cradh"))
-          this.YourCradhs.Add(spell.Name);
+        if (cradhs[name] == true)
+          YourCradhs.Add(name);
       }
     }
 
+
     public void BestPramhs()
     {
+      Dictionary<string, bool> pramhs = new Dictionary<string, bool>
+      {
+        { "Mesmerize", false },
+        { "pramh", false },
+        { "beag pramh", false },
+        { "suain", false },
+        { "dall", false },
+      };
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Equals("Mesmerize"))
-          this.YourPramhs.Add(spell.Name);
+        if (spell is null) continue;
+
+        if (pramhs.ContainsKey(spell.Name))
+          pramhs[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in pramhs.Keys)
       {
-        if (spell != null && spell.Name.Equals("pramh"))
-          this.YourPramhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("beag pramh"))
-          this.YourPramhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("suain"))
-          this.YourPramhs.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("dall"))
-          this.YourPramhs.Add(spell.Name);
+        if (pramhs[name] == true)
+          YourPramhs.Add(name);
       }
     }
 
     public void BestAttacks1()
     {
-      bool flag1 = false;
-      bool flag2 = false;
+      Dictionary<string, bool> spellAttacks1 = new Dictionary<string, bool>
+      {
+        { "Wraith Touch", false },
+        { "athar lamh", false },
+        { "srad lamh", false },
+        { "Keeter", false },
+        { "Mermaid", false },
+        { "Torch", false },
+        { "Groo", false },
+        { "Unholy Explosion", false },
+        { "Dragon Blast", false },
+        { "mor strioch pian gar", false },
+        { "ard pian na dion", false },
+        { "mor pian na dion", false },
+        { "pian na dion", false },
+        { "mor deo searg gar", false },
+        { "deo searg gar", false },
+        { "ard deo searg", false },
+        { "Deception of Life", false },
+        { "deo searg", false },
+        { "Star Arrow", false },
+        { "Shock Arrow", false },
+        { "Frost Arrow", false },
+        { "Hail of Feathers", false },
+      };
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Contains("Wraith Touch"))
-          this.YourAttacks1.Add(spell.Name);
+        if (spell is null) continue;
+
+        if (spellAttacks1.ContainsKey(spell.Name))
+          spellAttacks1[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in spellAttacks1.Keys)
       {
-        if (spell != null && spell.Name.Contains("athar lamh"))
-          this.YourAttacks1.Add(spell.Name);
+        if (spellAttacks1[name] == true)
+          YourAttacks1.Add(name);
       }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("srad lamh"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Keeter"))
-          this.YourAttacks1.Add("Keeter");
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Mermaid"))
-          this.YourAttacks1.Add("Mermaid");
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Torch"))
-          this.YourAttacks1.Add("Torch");
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Groo"))
-          this.YourAttacks1.Add("Groo");
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Unholy Explosion"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Dragon Blast"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("mor strioch pian gar"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("ard pian na dion"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("mor pian na dion"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("pian na dion"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("mor deo searg gar"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("deo searg gar"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("ard deo searg"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Deception of Life"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("deo searg"))
-          this.YourAttacks1.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Star Arrow"))
-          this.YourAttacks1.Add("Star Arrow");
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Shock Arrow"))
-        {
-          this.YourAttacks1.Add("Shock Arrow");
-          flag1 = true;
-        }
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Frost Arrow"))
-        {
-          this.YourAttacks1.Add("Frost Arrow");
-          flag2 = true;
-        }
-      }
-      if (flag1 & flag2)
+
+      if (YourAttacks1.Contains("Frost Arrow") && YourAttacks1.Contains("Shock Arrow"))
         this.YourAttacks1.Add("Frost + 3 Shocks");
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Contains("Hail of Feathers"))
-          this.YourAttacks1.Add("Hail of Feathers");
-      }
     }
 
     public void BestAttacks2()
     {
+      Dictionary<string, bool> spellAttacks2 = new Dictionary<string, bool>
+      {
+        { "Cursed Tune", false },
+        { "Chadul's Shot", false },
+        { "Hypernova Shot", false },
+        { "Supernova Shot", false },
+      };
+
+      // Which ones do I have
       foreach (Spell spell in this.SpellBook)
       {
-        if (spell != null && spell.Name.Contains("Cursed Tune"))
-          this.YourAttacks2.Add("Cursed Tune");
+        if (spell is null) continue;
+
+        if (spellAttacks2.ContainsKey(spell.Name))
+          spellAttacks2[spell.Name] = true;
       }
-      foreach (Spell spell in this.SpellBook)
+
+      // Add them in the defined order
+      foreach (string name in spellAttacks2.Keys)
       {
-        if (spell != null && spell.Name.Equals("Chadul's Shot"))
-          this.YourAttacks2.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Hypernova Shot"))
-          this.YourAttacks2.Add(spell.Name);
-      }
-      foreach (Spell spell in this.SpellBook)
-      {
-        if (spell != null && spell.Name.Equals("Supernova Shot"))
-          this.YourAttacks2.Add(spell.Name);
+        if (spellAttacks2[name] == true)
+          YourAttacks1.Add(name);
       }
     }
 
     public void SpellsAppear()
     {
-      int y1 = 47;
+      int y1 = 22;
       int y2 = 22;
       bool flag = false;
-      if (this.HasSpell("ard fas nadur") || this.HasSpell("mor fas nadur") || this.HasSpell("fas nadur") || this.HasSpell("beag fas nadur"))
-        flag = true;
-      if (this.HasSpell("ard naomh aite") || this.HasSpell("mor naomh aite") || this.HasSpell("naomh aite") || this.HasSpell("beag naomh aite"))
+      if (YourFases.Count != 0)
+        y1 += 25;
+      if (YourAites.Count != 0)
       {
         this.Tab.selfaite.Visible = true;
         this.Tab.selfaitetype.Visible = true;
         this.Tab.selfaite.Location = new System.Drawing.Point(28, y1);
         this.Tab.selfaitetype.Location = new System.Drawing.Point(49, y1 - 4);
-        if (flag)
-          y1 += 29;
-        else
-          y1 += 25;
+        y1 += 25;
       }
-      if (this.HasSpell("ard fas nadur") || this.HasSpell("mor fas nadur") || this.HasSpell("fas nadur") || this.HasSpell("beag fas nadur"))
+      if (YourFases.Count != 0)
       {
         this.Tab.selffas.Visible = true;
         this.Tab.selffastype.Visible = true;
@@ -17475,7 +17097,7 @@ label_860:
         this.Tab.bubblenorajo.Visible = true;
         this.Tab.bubblenorajo.Location = new System.Drawing.Point(176, y2);
       }
-      if (this.HasSpell("ard ioc") || this.HasSpell("mor ioc") || this.HasSpell("ioc") || this.HasSpell("beag ioc") || this.HasSpell("nuadhaich") || this.HasSpell("Spirit Essence"))
+      if (YourIocs.Count != 0)
       {
         this.Tab.iocself.Visible = true;
         this.Tab.iocselfcond.Visible = true;
@@ -17486,9 +17108,8 @@ label_860:
         this.Tab.fs.Visible = true;
         this.Tab.fscond.Visible = true;
       }
-      if (!this.HasItem("Glowing Stone") && !this.HasSpell("Iron Skin") && !this.HasSpell("mor dion") && !this.HasSpell("Stone Skin") && !this.HasSpell("Wings of Protection") && !this.HasSpell("dion") && !this.HasSpell("Draco Stance"))
-        return;
-      this.Tab.group_dion.Visible = true;
+      if (YourDions.Count != 0)
+        this.Tab.group_dion.Visible = true;
     }
 
     public void SkillsAppear()
@@ -26885,122 +26506,231 @@ label_31:
       }
     })).Start();
 
-    public void FindAutoWalkPath(int destmap)
+
+    public void FindAutoWalkPath(int destinationMap)
     {
-      if (this.MapInfo.Number == destmap && this.Tab.autowalker_button.Text == "Stop" && !this.HasAWPath)
+      // Handle current map case
+      if (MapInfo.Number == destinationMap &&
+          Tab.autowalker_button.Text == "Stop" &&
+          !HasAWPath)
       {
-        if (this.AutoWalkMaps.ContainsKey(destmap) && this.AutoWalkMaps[destmap].Default != null)
-        {
-          this.CurAWDest = this.AutoWalkMaps[destmap].Default;
-          this.HasAWPath = true;
-        }
-        else
-        {
-          this.CurAWDest = (Location) null;
-          this.HasAWPath = false;
-          this.Tab.autowalker_button.Text = "Start";
-          this.autowalkon = false;
-        }
-      }
-      if (this.MapInfo.Number == destmap || this.HasAWPath)
+        if (TryUseDefaultPath(destinationMap))
+          return;
+
+        ResetAutoWalk();
         return;
-      foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
-        mappedMaps.Checked = false;
-      List<int> intList1 = new List<int>();
-      List<int> intList2 = new List<int>();
-      int num1 = 0;
-label_11:
-      bool flag = false;
-      List<int> intList3 = new List<int>();
-      intList3.Add(this.MapInfo.Number);
-      while (!intList3.Contains(destmap))
+      }
+
+      if (MapInfo.Number == destinationMap || HasAWPath)
+        return;
+
+      ResetCheckedFlags();
+
+      var path = FindShortestPath(MapInfo.Number, destinationMap);
+
+      if (path == null || path.Count == 0)
       {
-        ++num1;
-        int num2 = 0;
-        foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
+        HasAWPath = false;
+        CurAWDest = null;
+        return;
+      }
+
+      SetNextDestination(path);
+      HasAWPath = true;
+    }
+
+    private List<int> FindShortestPath(int start, int target)
+    {
+      var queue = new Queue<List<int>>();
+      var visited = new HashSet<int>();
+
+      queue.Enqueue(new List<int> { start });
+      visited.Add(start);
+
+      while (queue.Count > 0)
+      {
+        var path = queue.Dequeue();
+        int current = path[path.Count - 1];
+
+        if (!AutoWalkMaps.ContainsKey(current))
+          continue;
+
+        var map = AutoWalkMaps[current];
+
+        foreach (var connection in map.ConnectedTo.Keys)
         {
-          if (mappedMaps != null && intList3.Contains(mappedMaps.Number) && mappedMaps.ConnectedTo.Count > 0)
-          {
-            foreach (int key in mappedMaps.ConnectedTo.Keys)
-            {
-              string str = mappedMaps.Number.ToString() + "," + key.ToString();
-              if (this.AutoWalkMaps.ContainsKey(key) && !this.AutoWalkMaps[key].Deadend && !this.AutoWalkMaps[mappedMaps.Number].Checked && !intList3.Contains(key))
-              {
-                this.AutoWalkMaps[mappedMaps.Number].Checked = true;
-                ++num2;
-                intList2.Add(key);
-                intList3.Add(key);
-                break;
-              }
-            }
-          }
-          if (intList3.Contains(destmap))
-          {
-            this.AutoWalkMaps[intList3.Last<int>()].Deadend = true;
-            break;
-          }
-        }
-        if (num2 == 0)
-        {
-          this.AutoWalkMaps[intList3.Last<int>()].Deadend = true;
-          flag = true;
-          break;
+          if (visited.Contains(connection))
+            continue;
+
+          var newPath = new List<int>(path) { connection };
+
+          if (connection == target)
+            return newPath;
+
+          visited.Add(connection);
+          queue.Enqueue(newPath);
         }
       }
-      foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
-        mappedMaps.Checked = false;
-      if (intList3.Count<int>() > 0)
+
+      return null;
+    }
+
+    private bool TryUseDefaultPath(int map)
+    {
+      if (AutoWalkMaps.ContainsKey(map) && AutoWalkMaps[map].Default != null)
       {
-        List<int> intList4 = new List<int>((IEnumerable<int>) intList3);
-        if (!flag)
-        {
-          ++this.AutoWalkMaps[this.MapInfo.Number].Routes;
-          this.AutoWalkMaps[this.MapInfo.Number].RoutesDic[this.AutoWalkMaps[this.MapInfo.Number].Routes] = intList4;
-        }
-        foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
-        {
-          if (mappedMaps != null && intList3.Contains(mappedMaps.Number) && mappedMaps.ConnectedTo.Count > 0)
-          {
-            foreach (int key in mappedMaps.ConnectedTo.Keys)
-            {
-              if (this.AutoWalkMaps.ContainsKey(key) && !this.AutoWalkMaps[key].Deadend)
-              {
-                if (!intList2.Contains(key))
-                  goto label_11;
-              }
-            }
-          }
-        }
-        intList3.Clear();
+        CurAWDest = AutoWalkMaps[map].Default;
+        HasAWPath = true;
+        return true;
       }
-      if (this.AutoWalkMaps[this.MapInfo.Number].Routes > 0)
+      return false;
+    }
+
+    private void ResetAutoWalk()
+    {
+      CurAWDest = null;
+      HasAWPath = false;
+      Tab.autowalker_button.Text = "Start";
+      autowalkon = false;
+    }
+
+    private void ResetCheckedFlags()
+    {
+      foreach (var map in AutoWalkMaps.Values)
+        map.Checked = false;
+    }
+
+    private void SetNextDestination(List<int> path)
+    {
+      int currentMap = MapInfo.Number;
+
+      foreach (int next in path)
       {
-        foreach (List<int> intList5 in (IEnumerable<List<int>>) this.AutoWalkMaps[this.MapInfo.Number].RoutesDic.Values.OrderBy<List<int>, int>((Func<List<int>, int>) (p => p.Count)))
+        if (AutoWalkMaps[currentMap].ConnectedTo.ContainsKey(next))
         {
-          if (intList5 != null && intList5.Contains(destmap))
-          {
-            intList1 = intList5;
-            break;
-          }
+          var loc = AutoWalkMaps[currentMap].ConnectedTo[next];
+          CurAWDest = new Location(loc.X, loc.Y);
+          return;
         }
-        this.AutoWalkMaps[this.MapInfo.Number].Routes = 0;
-        this.AutoWalkMaps[this.MapInfo.Number].RoutesDic.Clear();
-        foreach (int key in intList1)
-        {
-          if (this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo.ContainsKey(key))
-          {
-            this.CurAWDest = new Location(this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo[key].X, this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo[key].Y);
-            break;
-          }
-        }
-        this.HasAWPath = true;
-      }
-      else
-      {
-        this.CurAWDest = (Location) null;
-        this.HasAWPath = false;
       }
     }
+
+    //    public void FindAutoWalkPath(int destmap)
+    //    {
+    //      if (this.MapInfo.Number == destmap && this.Tab.autowalker_button.Text == "Stop" && !this.HasAWPath)
+    //      {
+    //        if (this.AutoWalkMaps.ContainsKey(destmap) && this.AutoWalkMaps[destmap].Default != null)
+    //        {
+    //          this.CurAWDest = this.AutoWalkMaps[destmap].Default;
+    //          this.HasAWPath = true;
+    //        }
+    //        else
+    //        {
+    //          this.CurAWDest = (Location) null;
+    //          this.HasAWPath = false;
+    //          this.Tab.autowalker_button.Text = "Start";
+    //          this.autowalkon = false;
+    //        }
+    //      }
+    //      if (this.MapInfo.Number == destmap || this.HasAWPath)
+    //        return;
+    //      foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
+    //        mappedMaps.Checked = false;
+    //      List<int> intList1 = new List<int>();
+    //      List<int> intList2 = new List<int>();
+    //      int num1 = 0;
+    //label_11:
+    //      bool flag = false;
+    //      List<int> intList3 = new List<int>();
+    //      intList3.Add(this.MapInfo.Number);
+    //      while (!intList3.Contains(destmap))
+    //      {
+    //        ++num1;
+    //        int num2 = 0;
+    //        foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
+    //        {
+    //          if (mappedMaps != null && intList3.Contains(mappedMaps.Number) && mappedMaps.ConnectedTo.Count > 0)
+    //          {
+    //            foreach (int key in mappedMaps.ConnectedTo.Keys)
+    //            {
+    //              string str = mappedMaps.Number.ToString() + "," + key.ToString();
+    //              if (this.AutoWalkMaps.ContainsKey(key) && !this.AutoWalkMaps[key].Deadend && !this.AutoWalkMaps[mappedMaps.Number].Checked && !intList3.Contains(key))
+    //              {
+    //                this.AutoWalkMaps[mappedMaps.Number].Checked = true;
+    //                ++num2;
+    //                intList2.Add(key);
+    //                intList3.Add(key);
+    //                break;
+    //              }
+    //            }
+    //          }
+    //          if (intList3.Contains(destmap))
+    //          {
+    //            this.AutoWalkMaps[intList3.Last<int>()].Deadend = true;
+    //            break;
+    //          }
+    //        }
+    //        if (num2 == 0)
+    //        {
+    //          this.AutoWalkMaps[intList3.Last<int>()].Deadend = true;
+    //          flag = true;
+    //          break;
+    //        }
+    //      }
+    //      foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
+    //        mappedMaps.Checked = false;
+    //      if (intList3.Count<int>() > 0)
+    //      {
+    //        List<int> intList4 = new List<int>((IEnumerable<int>) intList3);
+    //        if (!flag)
+    //        {
+    //          ++this.AutoWalkMaps[this.MapInfo.Number].Routes;
+    //          this.AutoWalkMaps[this.MapInfo.Number].RoutesDic[this.AutoWalkMaps[this.MapInfo.Number].Routes] = intList4;
+    //        }
+    //        foreach (MappedMaps mappedMaps in this.AutoWalkMaps.Values)
+    //        {
+    //          if (mappedMaps != null && intList3.Contains(mappedMaps.Number) && mappedMaps.ConnectedTo.Count > 0)
+    //          {
+    //            foreach (int key in mappedMaps.ConnectedTo.Keys)
+    //            {
+    //              if (this.AutoWalkMaps.ContainsKey(key) && !this.AutoWalkMaps[key].Deadend)
+    //              {
+    //                if (!intList2.Contains(key))
+    //                  goto label_11;
+    //              }
+    //            }
+    //          }
+    //        }
+    //        intList3.Clear();
+    //      }
+    //      if (this.AutoWalkMaps[this.MapInfo.Number].Routes > 0)
+    //      {
+    //        foreach (List<int> intList5 in (IEnumerable<List<int>>) this.AutoWalkMaps[this.MapInfo.Number].RoutesDic.Values.OrderBy<List<int>, int>((Func<List<int>, int>) (p => p.Count)))
+    //        {
+    //          if (intList5 != null && intList5.Contains(destmap))
+    //          {
+    //            intList1 = intList5;
+    //            break;
+    //          }
+    //        }
+    //        this.AutoWalkMaps[this.MapInfo.Number].Routes = 0;
+    //        this.AutoWalkMaps[this.MapInfo.Number].RoutesDic.Clear();
+    //        foreach (int key in intList1)
+    //        {
+    //          if (this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo.ContainsKey(key))
+    //          {
+    //            this.CurAWDest = new Location(this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo[key].X, this.AutoWalkMaps[this.MapInfo.Number].ConnectedTo[key].Y);
+    //            break;
+    //          }
+    //        }
+    //        this.HasAWPath = true;
+    //      }
+    //      else
+    //      {
+    //        this.CurAWDest = (Location) null;
+    //        this.HasAWPath = false;
+    //      }
+    //    }
 
     public void AutoWalkToAlt(int destmap)
     {
@@ -28900,7 +28630,11 @@ label_11:
         if (this.Tab.vwalklocaleslist == "Yeti")
           this.FindAutoWalkPath(7071);
       }
-      if (this.HasAWPath && this.CurAWDest != null && this.AutoWalkMaps[this.MapInfo.Number].Default == this.CurAWDest && !this.WithinRange(this.CurAWDest.X, this.CurAWDest.Y, 3))
+      if (this.HasAWPath 
+          && this.CurAWDest != null 
+          && AutoWalkMaps.ContainsKey(MapInfo.Number) 
+          && this.AutoWalkMaps[this.MapInfo.Number].Default == this.CurAWDest 
+          && !this.WithinRange(this.CurAWDest.X, this.CurAWDest.Y, 3))
         this.AutoWalkWithinRange(this.CurAWDest.X, this.CurAWDest.Y, 3);
       else if (this.HasAWPath && this.CurAWDest != null && this.AutoWalkMaps[this.MapInfo.Number].Default == this.CurAWDest)
       {

@@ -72,7 +72,7 @@ namespace Flintstones
         if (this.DrawThread != null)
         {
           this.DrawThread.Abort();
-          this.DrawThread = (Thread) null;
+          this.DrawThread = (Thread)null;
         }
         this.DrawThread = new Thread(new ThreadStart(this.Draw));
         this.DrawThread.Start();
@@ -88,70 +88,62 @@ namespace Flintstones
       this.matrix1.MaxtrixSize = this.trackBar1.Value;
       while (true)
       {
-        try
+        Graphics g = this.matrix1.G;
+        Bitmap bitmap = new Bitmap(this.Client.MapInfo.Width * this.matrix1.MaxtrixSize, this.Client.MapInfo.Height * this.matrix1.MaxtrixSize);
+        if (this.DrawMap != this.Client.MapInfo.Number)
         {
-          Graphics g = this.matrix1.G;
-          Bitmap bitmap = new Bitmap(this.Client.MapInfo.Width * this.matrix1.MaxtrixSize, this.Client.MapInfo.Height * this.matrix1.MaxtrixSize);
-          if (this.DrawMap != this.Client.MapInfo.Number)
+          this.DrawMap = this.Client.MapInfo.Number;
+          this.matrix1.Refresh();
+          bitmap.Dispose();
+          bitmap = new Bitmap(bitmap.Width * this.matrix1.MaxtrixSize, bitmap.Height * this.matrix1.MaxtrixSize);
+        }
+        Graphics graphics = Graphics.FromImage((Image) bitmap);
+        int minX = Client.MapInfo.BaseMatrix.GetLowerBound(0);
+        int maxX = Client.MapInfo.BaseMatrix.GetUpperBound(0);
+        int minY = Client.MapInfo.BaseMatrix.GetLowerBound(1);
+        int maxY = Client.MapInfo.BaseMatrix.GetUpperBound(1);
+        for (int x = minX; x <= maxX; x++)
+        {
+          for (int y = minY; y <= maxY; y++)
           {
-            this.DrawMap = this.Client.MapInfo.Number;
-            this.matrix1.Refresh();
-            bitmap.Dispose();
-            bitmap = new Bitmap(bitmap.Width * this.matrix1.MaxtrixSize, bitmap.Height * this.matrix1.MaxtrixSize);
-          }
-          Graphics graphics = Graphics.FromImage((Image) bitmap);
-          try
-          {
-            for (ushort index1 = 0; (int) index1 < this.Client.MapInfo.BaseMatrix.GetUpperBound(1); ++index1)
-            {
-              for (ushort index2 = 0; (int) index2 < this.Client.MapInfo.BaseMatrix.GetUpperBound(0); ++index2)
-              {
-                if (this.Client.MapInfo.BaseMatrix[(int) index2, (int) index1] == (byte) 0)
-                  graphics.FillRectangle(Brushes.Black, (int) index2 * this.matrix1.MaxtrixSize, (int) index1 * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-                else if (this.Client.MapInfo.BaseMatrix[(int) index2, (int) index1] == (byte) 1 || this.Client.MapInfo.BaseMatrix[(int) index2, (int) index1] == (byte) 48 || this.Client.MapInfo.BaseMatrix[(int) index2, (int) index1] == (byte) 6)
-                  graphics.FillRectangle(Brushes.White, (int) index2 * this.matrix1.MaxtrixSize, (int) index1 * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-              }
-            }
-            foreach (KeyValuePair<Location, string> region in this.Client.TempRegions[this.Client.MapInfo.Number].Regions)
-            {
-              if (region.Key != null && region.Value == "WayPoint")
-                graphics.FillRectangle(Brushes.Blue, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-            }
-            foreach (KeyValuePair<Location, string> region in this.Client.TempRegions[this.Client.MapInfo.Number].Regions)
-            {
-              if (region.Key != null && region.Value == "Block")
-                graphics.FillRectangle(Brushes.Gray, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-            }
-            foreach (KeyValuePair<Location, string> region in this.Client.TempRegions[this.Client.MapInfo.Number].Regions)
-            {
-              if (region.Key != null && region.Value == "Door")
-                graphics.FillRectangle(Brushes.Green, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-            }
-            try
-            {
-              lock (this.Client.Characters)
-              {
-                foreach (Character character in this.Client.Characters.Values.ToArray<Character>())
-                {
-                  if (character != null && character.IsOnScreen && (int) character.ID != (int) this.Client.PlayerID && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster))
-                    graphics.FillRectangle(Brushes.Red, character.Location.X * this.matrix1.MaxtrixSize, character.Location.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-                }
-              }
-            }
-            catch
-            {
-            }
-            graphics.FillRectangle(Brushes.Goldenrod, this.Client.ServerLocation.X * this.matrix1.MaxtrixSize, this.Client.ServerLocation.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
-            g.DrawImage((Image) bitmap, 0, 0);
-          }
-          catch
-          {
+            if (this.Client.MapInfo.BaseMatrix[x, y] == 0)
+              graphics.FillRectangle(Brushes.Black, x * matrix1.MaxtrixSize, y * matrix1.MaxtrixSize, matrix1.MaxtrixSize, matrix1.MaxtrixSize);
+            else if (Client.MapInfo.BaseMatrix[x, y] == 1 
+                  || Client.MapInfo.BaseMatrix[x, y] == 48 
+                  || Client.MapInfo.BaseMatrix[x, y] == 6)
+              graphics.FillRectangle(Brushes.White,  x * matrix1.MaxtrixSize, y * matrix1.MaxtrixSize, matrix1.MaxtrixSize, matrix1.MaxtrixSize);
           }
         }
-        catch
+
+        foreach (KeyValuePair<Location, string> region in this.Client.TempRegions[this.Client.MapInfo.Number].Regions)
         {
+          if (region.Key is null) continue;
+
+          if (region.Value == "WayPoint")
+            graphics.FillRectangle(Brushes.Blue, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
+          if (region.Value == "Block")
+            graphics.FillRectangle(Brushes.Gray, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
+          if (region.Value == "Door")
+            graphics.FillRectangle(Brushes.Green, region.Key.X * this.matrix1.MaxtrixSize, region.Key.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
         }
-        Thread.Sleep(150);
+
+        Character[] characterArray = null;
+        lock (this.Client.Characters)
+        {
+          characterArray = Client.Characters.Values.ToArray<Character>();
+        }
+        foreach (Character character in characterArray)
+        {
+          if (character is null) continue;
+
+          if (character.IsOnScreen && character.ID != this.Client.PlayerID && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster))
+            graphics.FillRectangle(Brushes.Red, character.Location.X * this.matrix1.MaxtrixSize, character.Location.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
+        }
+        graphics.FillRectangle(Brushes.Goldenrod, this.Client.ServerLocation.X * this.matrix1.MaxtrixSize, this.Client.ServerLocation.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
+        if (g != null)
+        {
+          g.DrawImage(bitmap, 0, 0);
+        }
       }
     }
 

@@ -64,9 +64,11 @@
     <Compile Include="Types\CharacterStats.cs" />
     <Compile Include="Types\Enums.cs" />
     <Compile Include="Types\Items.cs" />
+    <Compile Include="Types\ManualBlocks.cs" />
     <Compile Include="Types\Meditation.cs" />
     <Compile Include="Types\Monster.cs" />
     <Compile Include="Types\MonsterKills.cs" />
+    <Compile Include="Types\Room.cs" />
     <Compile Include="Types\SpeakCommands.cs" />
     <Compile Include="Types\Walking.cs" />
     <Compile Include="Types\WalkLocation.cs" />

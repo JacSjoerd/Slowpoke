@@ -1722,6 +1722,7 @@ namespace Flintstones
       this.tabControl2 = new System.Windows.Forms.TabControl();
       this.tabPage2 = new System.Windows.Forms.TabPage();
       this.loadalts_button = new System.Windows.Forms.Button();
+      this.Friendlist_label = new System.Windows.Forms.Label();
       this.altname_label = new System.Windows.Forms.Label();
       this.altpass_label = new System.Windows.Forms.Label();
       this.altname_textbox = new System.Windows.Forms.TextBox();
@@ -1730,7 +1731,6 @@ namespace Flintstones
       this.removealt_button = new System.Windows.Forms.Button();
       this.alts_label = new System.Windows.Forms.Label();
       this.alt_listbox = new System.Windows.Forms.ListBox();
-      this.Friendlist_label = new System.Windows.Forms.Label();
       this.groupBox5 = new System.Windows.Forms.GroupBox();
       this.preplay = new System.Windows.Forms.CheckBox();
       this.label9 = new System.Windows.Forms.Label();
@@ -1952,6 +1952,16 @@ namespace Flintstones
       this.loadalts_button.UseVisualStyleBackColor = true;
       this.loadalts_button.Click += new System.EventHandler(this.loadalts_button_Click);
       // 
+      // Friendlist_label
+      // 
+      this.Friendlist_label.AutoSize = true;
+      this.Friendlist_label.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+      this.Friendlist_label.Location = new System.Drawing.Point(509, 3);
+      this.Friendlist_label.Name = "Friendlist_label";
+      this.Friendlist_label.Size = new System.Drawing.Size(64, 15);
+      this.Friendlist_label.TabIndex = 85;
+      this.Friendlist_label.Text = "Friend List";
+      // 
       // altname_label
       // 
       this.altname_label.AutoSize = true;
@@ -2024,19 +2034,8 @@ namespace Flintstones
       this.alt_listbox.Location = new System.Drawing.Point(285, 46);
       this.alt_listbox.Name = "alt_listbox";
       this.alt_listbox.ScrollAlwaysVisible = true;
-      this.alt_listbox.SelectionMode = System.Windows.Forms.SelectionMode.MultiSimple;
       this.alt_listbox.Size = new System.Drawing.Size(160, 229);
       this.alt_listbox.TabIndex = 86;
-      // 
-      // Friendlist_label
-      // 
-      this.Friendlist_label.AutoSize = true;
-      this.Friendlist_label.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.Friendlist_label.Location = new System.Drawing.Point(509, 3);
-      this.Friendlist_label.Name = "Friendlist_label";
-      this.Friendlist_label.Size = new System.Drawing.Size(64, 15);
-      this.Friendlist_label.TabIndex = 85;
-      this.Friendlist_label.Text = "Friend List";
       // 
       // groupBox5
       // 

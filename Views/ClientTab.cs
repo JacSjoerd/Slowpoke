@@ -4289,36 +4289,32 @@ namespace Flintstones
       }
     }
 
-    private void laborbutton_TextChanged(object sender, EventArgs e)
-    {
-      if (this.laborbutton.Text.Equals("Start"))
-        this.vlaborbutton = false;
-      else
-        this.vlaborbutton = true;
-    }
-
     private void laborbutton_Click(object sender, EventArgs e)
     {
       if (this.laborbutton.Text.Equals("Start"))
+      {
         this.laborbutton.Text = "Stop";
+        this.vlaborbutton = true;
+      }
       else
+      {
+        this.vlaborbutton = false;
         this.laborbutton.Text = "Start";
-    }
-
-    private void praybutton_TextChanged(object sender, EventArgs e)
-    {
-      if (this.praybutton.Text.Equals("Start"))
-        this.vpraybutton = false;
-      else
-        this.vpraybutton = true;
+      }
     }
 
     private void praybutton_Click(object sender, EventArgs e)
     {
       if (this.praybutton.Text.Equals("Start"))
+      {
         this.praybutton.Text = "Stop";
+        this.vpraybutton = true;
+      }
       else
+      {
         this.praybutton.Text = "Start";
+        this.vpraybutton = false;
+      }
     }
 
     private void praynecklace_CheckedChanged(object sender, EventArgs e)
@@ -4340,14 +4336,6 @@ namespace Flintstones
     }
 
     private void prayernecklist_SelectedIndexChanged(object sender, EventArgs e) => this.Client.PrayerNeck = this.prayernecklist.SelectedItem.ToString();
-
-    private void button1_Click(object sender, EventArgs e)
-    {
-    }
-
-    private void testnum_ValueChanged(object sender, EventArgs e)
-    {
-    }
 
     public void PopulateLureList()
     {
@@ -8568,7 +8556,6 @@ namespace Flintstones
             this.praybutton.TabIndex = 6;
             this.praybutton.Text = "Start";
             this.praybutton.UseVisualStyleBackColor = true;
-            this.praybutton.TextChanged += new System.EventHandler(this.praybutton_TextChanged);
             this.praybutton.Click += new System.EventHandler(this.praybutton_Click);
             // 
             // prayerassistant
@@ -8723,7 +8710,6 @@ namespace Flintstones
             this.laborbutton.TabIndex = 4;
             this.laborbutton.Text = "Start";
             this.laborbutton.UseVisualStyleBackColor = true;
-            this.laborbutton.TextChanged += new System.EventHandler(this.laborbutton_TextChanged);
             this.laborbutton.Click += new System.EventHandler(this.laborbutton_Click);
             // 
             // laborname
@@ -10607,29 +10593,6 @@ namespace Flintstones
             this.label6.Size = new System.Drawing.Size(96, 15);
             this.label6.TabIndex = 81;
             this.label6.Text = "Spell Animations";
-            // 
-            // testnum
-            // 
-            this.testnum.Location = new System.Drawing.Point(540, 28);
-            this.testnum.Maximum = new decimal(new int[] {
-            100000,
-            0,
-            0,
-            0});
-            this.testnum.Name = "testnum";
-            this.testnum.Size = new System.Drawing.Size(60, 23);
-            this.testnum.TabIndex = 80;
-            this.testnum.ValueChanged += new System.EventHandler(this.testnum_ValueChanged);
-            // 
-            // button1
-            // 
-            this.button1.Location = new System.Drawing.Point(456, 28);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
-            this.button1.TabIndex = 79;
-            this.button1.Text = "test";
-            this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
             // tabPage2
             // 

@@ -35,7 +35,7 @@ namespace Flintstones
         }
         catch
         {
-          return (Graphics) null;
+          return null;
         }
       }
     }

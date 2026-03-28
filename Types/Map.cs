@@ -34,12 +34,14 @@ namespace Flintstones
 
     public bool IsLoaded { get; private set; }
 
+    public ManualBlocks manualBlocks = new ManualBlocks();
+
     public bool Initialize()
     {
       try
       {
         this.Tiles = new Point[this.Width, this.Height];
-        string path = Options.DarkAgesMapsDirectoryName + "\\lod" + this.Number.ToString() + ".map";
+        string path = Path.Combine(Options.DarkAgesMapsDirectoryName, $"lod{this.Number.ToString()}.map");
         this.IsLoaded = false;
         if (File.Exists(path))
         {
@@ -181,290 +183,33 @@ namespace Flintstones
     public void UpdateBlocks(Client client)
     {
       Point[,] tiles = this.Tiles;
-      int upperBound1 = tiles.GetUpperBound(0);
-      int upperBound2 = tiles.GetUpperBound(1);
-      for (int lowerBound1 = tiles.GetLowerBound(0); lowerBound1 <= upperBound1; ++lowerBound1)
+      
+      // Check if there are blocks defined in the ManualBlocks
+      int lowerBoundX = tiles.GetLowerBound(0);
+      int upperBoundX = tiles.GetUpperBound(0);
+      int lowerBoundY = tiles.GetLowerBound(1);
+      int upperBoundY = tiles.GetUpperBound(1);
+
+      for (int x = lowerBoundX; x <= upperBoundX; x++)
       {
-        for (int lowerBound2 = tiles.GetLowerBound(1); lowerBound2 <= upperBound2; ++lowerBound2)
+        for (int y = lowerBoundY ; y <= upperBoundY; y++)
         {
-          Point point = tiles[lowerBound1, lowerBound2];
-          if (point != null)
+          Point point = tiles[x, y];
+          point = tiles[x, y];
+          if (point == null) continue;
+
+          if (manualBlocks.LocationsByID.ContainsKey(Number))
           {
-            DateTime today;
-            if (this.Name == "Pravat Deep")
+            if (manualBlocks.LocationsByID[Number].FirstOrDefault(p => p.X == x && p.Y == y) != null)
             {
-              int num = point.X == 3 && point.Y == 9 || point.X == 3 && point.Y == 10 || point.X == 3 && point.Y == 11 || point.X == 4 && point.Y == 9 || point.X == 4 && point.Y == 10 || point.X == 4 && point.Y == 11 || point.X == 5 && point.Y == 9 || point.X == 5 && point.Y == 10 || point.X == 5 && point.Y == 11 || point.X == 9 && point.Y == 3 || point.X == 9 && point.Y == 2 || point.X == 9 && point.Y == 1 || point.X == 10 && point.Y == 3 || point.X == 10 && point.Y == 2 || point.X == 10 && point.Y == 1 || point.X == 11 && point.Y == 3 || point.X == 11 && point.Y == 2 ? 1 : (point.X != 11 ? 0 : (point.Y == 1 ? 1 : 0));
-              point.HasBlock = num != 0;
+              point.HasBlock = true;
+              point.HasEntity = false;
             }
-            else if (this.Number == 662)
-            {
-              int num = point.X != 84 || point.Y != 15 ? (point.X != 85 ? 0 : (point.Y == 15 ? 1 : 0)) : 1;
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 501)
-            {
-              int num = point.X != 58 ? 0 : (point.Y == 57 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 190)
-            {
-              int num = point.X != 12 ? 0 : (point.Y == 20 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 187)
-            {
-              int num = point.X != 13 ? 0 : (point.Y == 3 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 3006)
-            {
-              int num = point.X != 15 ? 0 : (point.Y == 5 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 13)
-            {
-              int num = point.X != 44 ? 0 : (point.Y == 9 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Mileth Village")
-            {
-              today = DateTime.Today;
-              string str = today.ToString();
-              if (str == "2/14/2021 12:00:00 AM" || str == "2/15/2021 12:00:00 AM" || str == "2/16/2021 12:00:00 AM" || str == "2/17/2021 12:00:00 AM" || str == "2/18/2021 12:00:00 AM" || str == "2/19/2021 12:00:00 AM" || str == "2/20/2021 12:00:00 AM" || str == "2/21/2021 12:00:00 AM" || str == "2/22/2021 12:00:00 AM" || str == "2/23/2021 12:00:00 AM" || str == "2/24/2021 12:00:00 AM" || str == "2/25/2021 12:00:00 AM" || str == "2/26/2021 12:00:00 AM" || str == "2/27/2021 12:00:00 AM" || str == "2/28/2021 12:00:00 AM" || str == "2/29/2021 12:00:00 AM" || str == "3/1/2021 12:00:00 AM" || str == "3/2/2021 12:00:00 AM")
-              {
-                if (point.X == 88 && point.Y == 32 || point.X == 88 && point.Y == 31)
-                  point.HasBlock = true;
-                else if (point.Y == 30 && (point.X == 87 || point.X == 86 || point.X == 85 || point.X == 84 || point.X == 83))
-                  point.HasBlock = true;
-                else if (point.Y == 32 && (point.X == 96 || point.X == 95 || point.X == 94))
-                {
-                  point.HasBlock = true;
-                }
-                else
-                {
-                  int num = point.X != 75 ? 0 : (point.Y == 41 || point.Y == 40 || point.Y == 39 ? 1 : (point.Y == 38 ? 1 : 0));
-                  point.HasBlock = num != 0;
-                }
-              }
-              else
-                point.HasBlock = false;
-            }
-            else if (this.Name == "Undine Village Way")
-            {
-              today = DateTime.Today;
-              string str = today.ToString();
-              if (str == "2/14/2021 12:00:00 AM" || str == "2/15/2021 12:00:00 AM" || str == "2/16/2021 12:00:00 AM" || str == "2/17/2021 12:00:00 AM" || str == "2/18/2021 12:00:00 AM" || str == "2/19/2021 12:00:00 AM" || str == "2/20/2021 12:00:00 AM" || str == "2/21/2021 12:00:00 AM" || str == "2/22/2021 12:00:00 AM" || str == "2/23/2021 12:00:00 AM" || str == "2/24/2021 12:00:00 AM" || str == "2/25/2021 12:00:00 AM" || str == "2/26/2021 12:00:00 AM" || str == "2/27/2021 12:00:00 AM" || str == "2/28/2021 12:00:00 AM" || str == "2/29/2021 12:00:00 AM" || str == "3/1/2021 12:00:00 AM" || str == "3/2/2021 12:00:00 AM")
-              {
-                if (point.X == 15 && point.Y == 5)
-                  point.HasBlock = true;
-                else if (point.X == 14 && point.Y == 4)
-                  point.HasBlock = true;
-                else if (point.X == 12 && point.Y == 4)
-                  point.HasBlock = true;
-                else if (point.X == 13 && (point.Y == 3 || point.Y == 4))
-                {
-                  point.HasBlock = true;
-                }
-                else
-                {
-                  int num = point.X != 11 ? 0 : (point.Y == 7 || point.Y == 6 ? 1 : (point.Y == 5 ? 1 : 0));
-                  point.HasBlock = num != 0;
-                }
-              }
-              else
-                point.HasBlock = false;
-            }
-            else if (this.Name == "Undine Village")
-            {
-              today = DateTime.Today;
-              string str = today.ToString();
-              if (str == "2/14/2021 12:00:00 AM" || str == "2/15/2021 12:00:00 AM" || str == "2/16/2021 12:00:00 AM" || str == "2/17/2021 12:00:00 AM" || str == "2/18/2021 12:00:00 AM" || str == "2/19/2021 12:00:00 AM" || str == "2/20/2021 12:00:00 AM" || str == "2/21/2021 12:00:00 AM" || str == "2/22/2021 12:00:00 AM" || str == "2/23/2021 12:00:00 AM" || str == "2/24/2021 12:00:00 AM" || str == "2/25/2021 12:00:00 AM" || str == "2/26/2021 12:00:00 AM" || str == "2/27/2021 12:00:00 AM" || str == "2/28/2021 12:00:00 AM" || str == "2/29/2021 12:00:00 AM" || str == "3/1/2021 12:00:00 AM" || str == "3/2/2021 12:00:00 AM")
-              {
-                if (point.X == 63 && point.Y == 49)
-                  point.HasBlock = true;
-                else if (point.X == 64 && point.Y == 44)
-                  point.HasBlock = true;
-                else if (point.X == 61 && (point.Y == 48 || point.Y == 42))
-                  point.HasBlock = true;
-                else if (point.X == 60 && (point.Y == 47 || point.Y == 46 || point.Y == 45))
-                {
-                  point.HasBlock = true;
-                }
-                else
-                {
-                  int num = point.X != 61 ? 0 : (point.Y == 48 ? 1 : (point.Y == 42 ? 1 : 0));
-                  point.HasBlock = num != 0;
-                }
-              }
-              else
-                point.HasBlock = false;
-            }
-            else if (this.Name == "Suomi Village")
-            {
-              today = DateTime.Today;
-              string str = today.ToString();
-              if (str == "2/14/2021 12:00:00 AM" || str == "2/15/2021 12:00:00 AM" || str == "2/16/2021 12:00:00 AM" || str == "2/17/2021 12:00:00 AM" || str == "2/18/2021 12:00:00 AM" || str == "2/19/2021 12:00:00 AM" || str == "2/20/2021 12:00:00 AM" || str == "2/21/2021 12:00:00 AM" || str == "2/22/2021 12:00:00 AM" || str == "2/23/2021 12:00:00 AM" || str == "2/24/2021 12:00:00 AM" || str == "2/25/2021 12:00:00 AM" || str == "2/26/2021 12:00:00 AM" || str == "2/27/2021 12:00:00 AM" || str == "2/28/2021 12:00:00 AM" || str == "2/29/2021 12:00:00 AM" || str == "3/1/2021 12:00:00 AM" || str == "3/2/2021 12:00:00 AM")
-              {
-                if (point.X == 33 && point.Y == 6)
-                  point.HasBlock = true;
-                else if (point.X == 29 && point.Y == 6)
-                  point.HasBlock = true;
-                else if (point.X == 27 && point.Y == 5)
-                  point.HasBlock = true;
-                else if (point.X == 36 && (point.Y == 10 || point.Y == 13))
-                  point.HasBlock = true;
-                else if (point.X == 37 && (point.Y == 10 || point.Y == 15))
-                {
-                  point.HasBlock = true;
-                }
-                else
-                {
-                  int num = point.X != 34 ? 0 : (point.Y == 6 ? 1 : (point.Y == 15 ? 1 : 0));
-                  point.HasBlock = num != 0;
-                }
-              }
-              else
-                point.HasBlock = false;
-            }
-            else if (this.Name == "Rucesion Village")
-            {
-              if (point.X == 29 && point.Y == 12)
-                point.HasBlock = true;
-            }
-            else if (this.Name == "Pyramid Maze")
-            {
-              int num = point.Y != 55 ? 0 : (point.X == 83 || point.X == 84 || point.X == 85 || point.X == 86 || point.X == 87 || point.X == 88 || point.X == 89 ? 1 : (point.X == 90 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Mount Giragan 1")
-            {
-              int num = point.X != 39 ? 0 : (point.Y == 9 || point.Y == 8 || point.Y == 7 ? 1 : (point.Y == 6 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 11348)
-            {
-              if (point.X == 24 && point.Y == 20)
-              {
-                point.HasBlock = true;
-              }
-              else
-              {
-                int num = point.X != 25 ? 0 : (point.Y == 20 || point.Y == 21 ? 1 : (point.Y == 22 ? 1 : 0));
-                point.HasBlock = num != 0;
-              }
-            }
-            else if (this.Number == 11352)
-            {
-              int num = point.Y != 23 ? 0 : (point.X == 38 || point.X == 39 ? 1 : (point.X == 40 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 11309)
-            {
-              if (point.X == 23 && (point.Y == 11 || point.X == 12 || point.X == 13))
-                point.HasBlock = true;
-              else if (point.X == 24 && (point.Y == 13 || point.Y == 14))
-              {
-                point.HasBlock = true;
-              }
-              else
-              {
-                int num = point.X != 25 ? 0 : (point.Y == 13 ? 1 : 0);
-                point.HasBlock = num != 0;
-              }
-            }
-            else if (this.Number == 11338)
-            {
-              int num = point.X != 27 ? 0 : (point.Y == 16 || point.X == 17 ? 1 : (point.X == 18 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 4009)
-            {
-              int num = point.X != 25 ? 0 : (point.Y == 12 || point.Y == 13 || point.Y == 14 ? 1 : (point.Y == 15 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 3041)
-            {
-              int num = point.X != 2 || point.Y != 9 ? (point.X != 1 ? 0 : (point.Y == 14 ? 1 : 0)) : 1;
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 120)
-            {
-              int num = point.X != 6 ? 0 : (point.Y == 1 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 126)
-            {
-              int num = point.X != 1 ? 0 : (point.Y == 7 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 115)
-            {
-              int num = point.X != 1 || point.Y != 7 ? (point.X != 1 ? 0 : (point.Y == 10 ? 1 : 0)) : 1;
-              point.HasBlock = num != 0;
-            }
-            else if (this.Number == 3085)
-            {
-              int num = point.X != 10 || point.Y != 5 ? (point.X != 10 ? 0 : (point.Y == 6 ? 1 : 0)) : 1;
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "North Pole")
-            {
-              int num = point.X == 20 && point.Y == 8 || point.X == 8 && point.Y == 11 ? 1 : (point.X != 9 ? 0 : (point.Y == 11 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Mount Merry 4-2")
-            {
-              int num = point.X != 31 || point.Y != 48 ? (point.X != 29 ? 0 : (point.Y == 48 ? 1 : 0)) : 1;
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Pravat West Entrance")
-              point.HasBlock = point.Y == 0;
-            else if (this.Name == "Pravat South Entrance")
-            {
-              int num = point.Y == 25 && (point.X == 26 || point.X == 25 || point.X == 24 || point.X == 27 || point.X == 33 || point.X == 34 || point.X == 35 || point.X == 36) || point.Y == 14 && (point.X == 35 || point.X == 36 || point.X == 37 || point.X == 38) || point.X == 88 && (point.Y == 32 || point.Y == 31) || point.Y == 30 && (point.X == 87 || point.X == 86 || point.X == 85 || point.X == 84 || point.X == 83) || point.Y == 32 && (point.X == 96 || point.X == 95 || point.X == 94) ? 1 : (point.X != 75 ? 0 : (point.Y == 41 || point.Y == 40 || point.Y == 39 ? 1 : (point.Y == 38 ? 1 : 0)));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Preserved Vault")
-            {
-              int num = point.X == 13 && point.Y == 16 || point.X == 1 && point.Y == 17 || point.X == 13 && point.Y == 18 || point.X == 13 && point.Y == 19 || point.X == 16 && point.Y == 13 || point.X == 17 && point.Y == 13 || point.X == 18 && point.Y == 13 || point.X == 19 && point.Y == 13 || point.X == 25 && point.Y == 13 || point.X == 26 && point.Y == 13 || point.X == 27 && point.Y == 13 || point.X == 28 && point.Y == 13 || point.X == 13 && point.Y == 25 || point.X == 13 && point.Y == 26 || point.X == 13 && point.Y == 27 || point.X == 13 && point.Y == 28 || point.X == 2 && point.Y == 25 || point.X == 2 && point.Y == 26 || point.X == 2 && point.Y == 27 || point.X == 2 && point.Y == 28 || point.X == 2 && point.Y == 5 || point.X == 2 && point.Y == 6 || point.X == 2 && point.Y == 7 || point.X == 2 && point.Y == 8 || point.X == 5 && point.Y == 2 || point.X == 6 && point.Y == 2 || point.X == 7 && point.Y == 2 ? 1 : (point.X != 8 ? 0 : (point.Y == 2 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Chaos 13")
-            {
-              int num = point.X != 63 ? 0 : (point.Y == 71 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Oren Island City")
-            {
-              int num = point.X == 64 && point.Y == 120 || point.X == 71 && point.Y == 112 || point.X == 74 && point.Y == 105 ? 1 : (point.X != 56 ? 0 : (point.Y == 134 || point.Y == 133 || point.Y == 132 || point.Y == 131 || point.Y == 130 ? 1 : (point.Y == 129 ? 1 : 0)));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Oren Ruins 1-4")
-            {
-              int num = point.X != 0 ? 0 : (point.Y < 44 ? 0 : (point.Y <= 51 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Oren Ruins 1-3")
-            {
-              int num = point.X != 68 ? 0 : (point.Y == 0 ? 1 : 0);
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Oren Ruins 2-3")
-            {
-              int num = point.Y != 0 ? 0 : (point.X < 49 ? 0 : (point.X <= 67 ? 1 : 0));
-              point.HasBlock = num != 0;
-            }
-            else if (this.Name == "Lost Ruins 1")
-            {
-              int num = point.Y == 28 && point.X >= 42 && point.X <= 46 || point.Y == 0 && point.X >= 21 && point.X <= 33 ? 1 : (point.X != 0 ? 0 : (point.Y < 33 ? 0 : (point.Y <= 36 ? 1 : 0)));
-              point.HasBlock = num != 0;
-            }
-            else
-              point.HasBlock = false;
-            point.HasEntity = false;
           }
         }
       }
+
+
       if (client.TempRegions.ContainsKey(this.Number))
       {
         foreach (KeyValuePair<Location, string> region in client.TempRegions[this.Number].Regions)

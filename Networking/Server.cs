@@ -1519,7 +1519,7 @@ namespace Flintstones
       client.myPath = msg.ReadByte();
       msg.Read(1);
       client.Gender = msg.ReadByte();
-      msg.BodyData[6] = (byte) 2;
+      msg.BodyData[6] = 2;
 
       // Set path stats using CharacterClass enum to identify class in maxClassStats dictionary
       CharacterClass activeClass = (CharacterClass)client.myPath;
@@ -1667,16 +1667,12 @@ namespace Flintstones
       client.Tab.AscendOptions.statbuyupdate();
       client.Loaded = true;
       client.LoggedOn = true;
-      if (!client.BotThread.IsAlive)
-        client.BotThread.Start();
-      if (!client.EntityNameThread.IsAlive)
-        client.EntityNameThread.Start();
-      //if (!client.WalkThread.IsAlive)
-      //  client.WalkThread.Start();
+      //if (!client.BotThread.IsAlive)
+      //  client.BotThread.Start();
+      //if (!client.EntityNameThread.IsAlive)
+      //  client.EntityNameThread.Start();
       if (!client.QuestsThread.IsAlive)
         client.QuestsThread.Start();
-      //if (!client.SpeakCommandThread.IsAlive)
-      //  client.SpeakCommandThread.Start();
       if (client.Tab.pigwalk.Checked && client.HasItem("Ability and Experience Gift 1") && client.ItemAmount("Ability and Experience Gift 1") == 5U)
       {
         client.SendMessage("Stopped walking, you're at max stack of gift 1s", "red");
