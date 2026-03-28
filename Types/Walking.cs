@@ -1,20 +1,28 @@
 ﻿using Flintstones;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace slowpoke.Types
 {
   internal class Walking
   {
-    Client _client;
+    
+    private Client _client;
+
+    private string walkMapFilePath = Path.Combine(Program.StartupPath, "Settings", "WalkPaths.xml");
+    public static Dictionary<int, MappedMaps> AutoWalkMaps;
 
     public Walking(Client client)
     {
       _client = client;
+
+      if (AutoWalkMaps == null) AutoWalkMaps = LoadAutoWalkMaps();
     }
 
     public void Run(CancellationToken token)
@@ -316,5 +324,31 @@ namespace slowpoke.Types
       }
     }
 
+    private Dictionary<int, MappedMaps> LoadAutoWalkMaps()
+    {
+      var result = new Dictionary<int, MappedMaps>();
+      var doc = XDocument.Load(walkMapFilePath);
+
+      foreach (var mapElement in doc.Root.Elements("From"))
+      {
+        int fromId = (int)mapElement.Attribute("id");
+
+        var toRoom = new MappedMaps();
+
+        foreach (var toElement in mapElement.Elements("To"))
+        {
+          int toId = (int)toElement.Attribute("id");
+          int x = (int)toElement.Attribute("x");
+          int y = (int)toElement.Attribute("y");
+
+          toRoom.ConnectedTo[toId] = new Location(x, y);
+        }
+
+        result[fromId] = toRoom;
+      }
+
+      Console.WriteLine($"Loaded {result.Count} autowalk maps.");
+      return result;
+    }
   }
 }

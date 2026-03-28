@@ -338,7 +338,7 @@ namespace Flintstones
     /// The dictionary will be empty if no spells are defined.</returns>
     public static Dictionary<string, SpellData> LoadSpells()
     {
-      string filePath = Program.StartupPath + "\\Settings\\SpellList.xml";
+      string filePath = Path.Combine(Program.StartupPath, "Settings", "SpellList.xml");
       if (!File.Exists(filePath))
       {
         MessageBox.Show("SpellList.xml not found in Settings folder. Continuing with an empty spell list", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -373,7 +373,7 @@ namespace Flintstones
 
     public void PopulateNodes()
     {
-      string filePath = Program.StartupPath + "\\Settings\\HerbNodes.xml";
+      string filePath = Path.Combine(Program.StartupPath, "Settings", "HerbNodes.xml");
       if (!File.Exists(filePath))
       {
 //        MessageBox.Show("HerbNodes.xml not found in Settings folder.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -412,7 +412,7 @@ namespace Flintstones
 
     public void PopulateChestDatabase()
     {
-      string str = Program.StartupPath + "\\Settings\\ItemDatabase\\treasurechests.xml";
+      string str = Path.Combine(Program.StartupPath, "Settings", "ItemDatabase", "treasurechests.xml");
       if (!System.IO.File.Exists(str))
         return;
       XmlDocument xmlDocument = new XmlDocument();
