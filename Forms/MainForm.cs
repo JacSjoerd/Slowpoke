@@ -466,8 +466,8 @@ namespace Flintstones
           {
             if (client.pause)
             {
-              if (!client.BotThread.IsAlive)
-                client.BotThread.Start();
+              //if (!client.BotThread.IsAlive)
+              //  client.BotThread.Start();
               client.pause = false;
               client.Tab.btnPlay.Enabled = false;
               client.Tab.btnStop.Enabled = true;

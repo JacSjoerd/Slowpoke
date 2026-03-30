@@ -31,125 +31,94 @@ namespace slowpoke.Types
 
       while (!token.IsCancellationRequested)
       {
-        if (_client.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(_client.refreshdelay).TotalMilliseconds < 1200.0)
+        try
         {
-          Thread.Sleep(200);
-          continue;
-        }
 
-        if (_client.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(_client.refreshdelay).TotalMilliseconds >= 1200.0)
-          _client.refreshdelay = DateTime.MinValue;
+          Thread.Sleep(200); // prevent runaway thread
 
-        if (_client.pause || _client.pausewalk || _client.donotwalk)
-        {
-          Thread.Sleep(200);
-          continue;
-        }
+          if (_client.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(_client.refreshdelay).TotalMilliseconds < 1200.0)
+            continue;
 
-        if (_client.IsSkulled 
-            && _client.IsSuained 
-            && _client.IsStunned 
-            && _client.SpellBar.Contains((ushort)90) 
-            && _client.SpellBar.Contains((ushort)97) 
-            && _client.SpellBar.Contains((ushort)101))
-        {
-          Thread.Sleep(200);
-          continue;
-        }
+          if (_client.refreshdelay != DateTime.MinValue && DateTime.UtcNow.Subtract(_client.refreshdelay).TotalMilliseconds >= 1200.0)
+            _client.refreshdelay = DateTime.MinValue;
 
-        if (_client.Tab.wayregionson.Checked &&
-            _client.laststep != DateTime.MinValue &&
-            (DateTime.UtcNow - _client.laststep).TotalMilliseconds > 6000 &&
-            _client.lastsuccessfulcast != DateTime.MinValue &&
-            (DateTime.UtcNow - _client.lastsuccessfulcast).TotalMilliseconds > 10000)
-        {
-          _client.Refresh();
-          Thread.Sleep(1200);
-          _client.laststep = DateTime.UtcNow;
-        }
-        if (_client.Tab.vredaislings && _client.Tab.walktored.Checked && !_client.IsSurrounded(_client.ServerLocation))
-        {
-          foreach (Player e in (IEnumerable<Player>)((IEnumerable<Player>)_client.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>)(e => e.Location.DistanceFrom(_client.ServerLocation))))
+          if (_client.pause || _client.pausewalk || _client.donotwalk)
+            continue;
+
+          if (_client.IsIncapacitated())
+            continue;
+
+          if (_client.Tab.wayregionson.Checked &&
+              _client.laststep != DateTime.MinValue &&
+              (DateTime.UtcNow - _client.laststep).TotalMilliseconds > 6000 &&
+              _client.lastsuccessfulcast != DateTime.MinValue &&
+              (DateTime.UtcNow - _client.lastsuccessfulcast).TotalMilliseconds > 10000)
           {
-            if (e != null && (int)e.ID != (int)_client.PlayerID && (Server.StaticCharacters[e.ID].isskulled || Server.StaticCharacters[e.ID].IsSkulled) && _client.IsClosestToYou(e.Location) && !_client.IsSurrounded(e.Location) && (_client.GroupMembers.Contains(e.Name) || Server.Alts.ContainsKey(e.Name.ToLower()) || Server.friendlist != null && Server.friendlist.Contains(e.Name.ToLower())) && e.IsOnScreen && (!Server.Alts.ContainsKey(e.Name.ToLower()) || Server.Alts[e.Name.ToLower()].IsSkulled) && _client.HasItem("Komadium"))
+            _client.Refresh();
+            //Thread.Sleep(1200);
+            _client.laststep = DateTime.UtcNow;
+          }
+
+          if (_client.Tab.vredaislings && _client.Tab.walktored.Checked && !_client.IsSurrounded(_client.ServerLocation))
+          {
+            foreach (Player e in (IEnumerable<Player>)((IEnumerable<Player>)_client.NearbyPlayer()).OrderBy<Player, int>((Func<Player, int>)(e => e.Location.DistanceFrom(_client.ServerLocation))))
             {
-              _client.Red(e);
-              break;
+              if (e != null && (int)e.ID != (int)_client.PlayerID && (Server.StaticCharacters[e.ID].isskulled || Server.StaticCharacters[e.ID].IsSkulled) && _client.IsClosestToYou(e.Location) && !_client.IsSurrounded(e.Location) && (_client.GroupMembers.Contains(e.Name) || Server.Alts.ContainsKey(e.Name.ToLower()) || Server.friendlist != null && Server.friendlist.Contains(e.Name.ToLower())) && e.IsOnScreen && (!Server.Alts.ContainsKey(e.Name.ToLower()) || Server.Alts[e.Name.ToLower()].IsSkulled) && _client.HasItem("Komadium"))
+              {
+                _client.Red(e);
+                break;
+              }
             }
           }
-        }
-        if (_client.oktofollow)
-        {
-          if (!_client.disstopwalk)
+
+          if (_client.oktofollow)
           {
-            if (_client.autowalkon)
+            if (!_client.disstopwalk)
             {
-              _client.walkaround = false;
-              if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
+              if (_client.autowalkon)
               {
-                _client.Refresh();
-                Thread.Sleep(1200);
-                _client.laststep = DateTime.MinValue;
-              }
-              _client.AutoWalker();
-              _client.AWTest();
-            }
-            else if (_client.Tab.walkeverytile.Checked)
-            {
-              if (!_client.walkaround)
-                _client.walkaround = true;
-              if (_client.Tab.vactonlyinmobs)
-              {
-                if (_client.Mobbed)
-                  continue;
-              }
-              if (_client.Tab.vwalktoloot && _client.loot && _client.walktoloot)
-              {
-                Npc i = _client.NearestItem();
-                if (i != null && i.IsOnScreen && !_client.ServerLocation.WithinSquare(i.Location, 2))
+                _client.walkaround = false;
+                if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
                 {
-                  Point[] path = _client.MapInfo.FindPath(_client.ClientLocation.X, _client.ClientLocation.Y, i.Location.X, i.Location.Y, false);
-                  if (path.Length == 0)
-                    i.OutofReach = true;
-                  if (path.Length != 0 && path.Length < i.DistanceFrom(_client.ServerLocation) * 2)
-                  {
-                    _client.WalkToLoot(i);
+                  _client.Refresh();
+                  Thread.Sleep(1200);
+                  _client.laststep = DateTime.MinValue;
+                }
+                _client.AutoWalker();
+                _client.AWTest();
+              }
+              else if (_client.Tab.walkeverytile.Checked)
+              {
+                if (!_client.walkaround)
+                  _client.walkaround = true;
+                if (_client.Tab.vactonlyinmobs)
+                {
+                  if (_client.Mobbed)
                     continue;
+                }
+                if (_client.Tab.vwalktoloot && _client.loot && _client.walktoloot)
+                {
+                  Npc i = _client.NearestItem();
+                  if (i != null && i.IsOnScreen && !_client.ServerLocation.WithinSquare(i.Location, 2))
+                  {
+                    Point[] path = _client.MapInfo.FindPath(_client.ClientLocation.X, _client.ClientLocation.Y, i.Location.X, i.Location.Y, false);
+                    if (path.Length == 0)
+                      i.OutofReach = true;
+                    if (path.Length != 0 && path.Length < i.DistanceFrom(_client.ServerLocation) * 2)
+                    {
+                      _client.WalkToLoot(i);
+                      continue;
+                    }
+                    if (_client.walktoloot)
+                      _client.walktoloot = false;
                   }
-                  if (_client.walktoloot)
+                  else if (i == null && _client.walktoloot)
                     _client.walktoloot = false;
                 }
-                else if (i == null && _client.walktoloot)
-                  _client.walktoloot = false;
+                if (!_client.Tab.topx.Text.Equals("") && !_client.Tab.topy.Text.Equals("") && !_client.Tab.bottomx.Text.Equals("") && !_client.Tab.bottomy.Text.Equals(""))
+                  _client.SearchAllTiles(int.Parse(_client.Tab.topx.Text), int.Parse(_client.Tab.topy.Text), int.Parse(_client.Tab.bottomx.Text), int.Parse(_client.Tab.bottomy.Text));
               }
-              if (!_client.Tab.topx.Text.Equals("") && !_client.Tab.topy.Text.Equals("") && !_client.Tab.bottomx.Text.Equals("") && !_client.Tab.bottomy.Text.Equals(""))
-                _client.SearchAllTiles(int.Parse(_client.Tab.topx.Text), int.Parse(_client.Tab.topy.Text), int.Parse(_client.Tab.bottomx.Text), int.Parse(_client.Tab.bottomy.Text));
-            }
-            else if (_client.Tab.vwayregionson)
-            {
-              if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
-              {
-                _client.Refresh();
-                Thread.Sleep(1200);
-                _client.laststep = DateTime.MinValue;
-              }
-              if (!_client.Tab.haltwalknonfriends.Checked || _client.SafeToWalkFast || _client.MapInfo.Number == 2141)
-                _client.WayRegion();
-            }
-            else if (_client.Tab.vfollowplayer && _client.Tab.vfollowtarget != string.Empty && _client.follow_walk != 1)
-            {
-              if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
-              {
-                _client.Refresh();
-                Thread.Sleep(1200);
-                _client.laststep = DateTime.MinValue;
-              }
-              else
-                _client.Follow(_client.Tab.vfollowtarget, _client.Tab.vfollowdist);
-            }
-            if (_client.Tab.pigwalk.Checked)
-            {
-              if (_client.MainTarget != null && _client.MainTarget.IsOnScreen && _client.MapInfo.Number == 2141)
+              else if (_client.Tab.vwayregionson)
               {
                 if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
                 {
@@ -157,80 +126,105 @@ namespace slowpoke.Types
                   Thread.Sleep(1200);
                   _client.laststep = DateTime.MinValue;
                 }
-                _client.WalkOnTarget();
+                if (!_client.Tab.haltwalknonfriends.Checked || _client.SafeToWalkFast || _client.MapInfo.Number == 2141)
+                  _client.WayRegion();
               }
-              else if (_client.HasMPig())
+              else if (_client.Tab.vfollowplayer && _client.Tab.vfollowtarget != string.Empty && _client.follow_walk != 1)
               {
-                if (_client.HasFPig())
+                if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
                 {
-                  _client.Tab.autowalker_locales.SelectedItem = (object)"Loures";
-                  _client.Tab.walklocaleslist.SelectedItem = (object)"Throne Room";
-                  _client.Tab.autowalker_button.Text = "Stop";
-                  _client.autowalkon = true;
-                  _client.Tab.pigwalk.Checked = false;
+                  _client.Refresh();
+                  Thread.Sleep(1200);
+                  _client.laststep = DateTime.MinValue;
+                }
+                else
+                  _client.Follow(_client.Tab.vfollowtarget, _client.Tab.vfollowdist);
+              }
+              if (_client.Tab.pigwalk.Checked)
+              {
+                if (_client.MainTarget != null && _client.MainTarget.IsOnScreen && _client.MapInfo.Number == 2141)
+                {
+                  if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
+                  {
+                    _client.Refresh();
+                    Thread.Sleep(1200);
+                    _client.laststep = DateTime.MinValue;
+                  }
+                  _client.WalkOnTarget();
+                }
+                else if (_client.HasMPig())
+                {
+                  if (_client.HasFPig())
+                  {
+                    _client.Tab.autowalker_locales.SelectedItem = (object)"Loures";
+                    _client.Tab.walklocaleslist.SelectedItem = (object)"Throne Room";
+                    _client.Tab.autowalker_button.Text = "Stop";
+                    _client.autowalkon = true;
+                    _client.Tab.pigwalk.Checked = false;
+                  }
                 }
               }
-            }
-            else if (_client.Tab.walktowards.Checked && !_client.walktoloot && (_client.WaitOnBlankNames() || !_client.Tab.vactonlyinmobs || _client.Tab.vactonlyinmobs && _client.Mobbed))
-            {
-              if (_client.itemdroppeddelay != DateTime.MinValue)
+              else if (_client.Tab.walktowards.Checked && !_client.walktoloot && (_client.WaitOnBlankNames() || !_client.Tab.vactonlyinmobs || _client.Tab.vactonlyinmobs && _client.Mobbed))
               {
-                if (DateTime.UtcNow.Subtract(_client.itemdroppeddelay).TotalSeconds <= 3.0)
-                  goto label_92;
-              }
-              if (_client.Tab.vwalktoloot && _client.loot && _client.walktoloot)
-              {
-                Npc i = _client.NearestItem();
-                if (i != null && i.IsOnScreen && !_client.ServerLocation.WithinSquare(i.Location, 2))
+                if (_client.itemdroppeddelay != DateTime.MinValue)
                 {
-                  Point[] path = _client.MapInfo.FindPath(_client.ClientLocation.X, _client.ClientLocation.Y, i.Location.X, i.Location.Y, false);
-                  if (path.Length == 0)
-                    i.OutofReach = true;
-                  if (path.Length != 0 && path.Length < i.DistanceFrom(_client.ServerLocation) * 2)
+                  if (DateTime.UtcNow.Subtract(_client.itemdroppeddelay).TotalSeconds <= 3.0)
+                    goto label_92;
+                }
+                if (_client.Tab.vwalktoloot && _client.loot && _client.walktoloot)
+                {
+                  Npc i = _client.NearestItem();
+                  if (i != null && i.IsOnScreen && !_client.ServerLocation.WithinSquare(i.Location, 2))
                   {
-                    _client.WalkToLoot(i);
-                    continue;
+                    Point[] path = _client.MapInfo.FindPath(_client.ClientLocation.X, _client.ClientLocation.Y, i.Location.X, i.Location.Y, false);
+                    if (path.Length == 0)
+                      i.OutofReach = true;
+                    if (path.Length != 0 && path.Length < i.DistanceFrom(_client.ServerLocation) * 2)
+                    {
+                      _client.WalkToLoot(i);
+                      continue;
+                    }
+                    if (_client.walktoloot)
+                      _client.walktoloot = false;
                   }
-                  if (_client.walktoloot)
+                  else if (i == null && _client.walktoloot)
                     _client.walktoloot = false;
                 }
-                else if (i == null && _client.walktoloot)
-                  _client.walktoloot = false;
+                _client.WalkTowardsNearestMonster();
               }
-              _client.WalkTowardsNearestMonster();
-            }
-            else if (_client.Tab.walktomonster.Checked)
-            {
-              if (!_client.SpellBar.Contains((ushort)10))
+              else if (_client.Tab.walktomonster.Checked)
               {
-                if (_client.Tab.vactonlyinmobs)
+                if (!_client.SpellBar.Contains((ushort)10))
                 {
                   if (_client.Tab.vactonlyinmobs)
                   {
-                    if (!_client.Mobbed)
+                    if (_client.Tab.vactonlyinmobs)
+                    {
+                      if (!_client.Mobbed)
+                        goto label_92;
+                    }
+                    else
                       goto label_92;
                   }
-                  else
-                    goto label_92;
-                }
-                if (_client.MainTarget != null)
-                {
-                  if (_client.MainTarget.IsOnScreen)
+                  if (_client.MainTarget != null)
                   {
-                    if (_client.MainTarget.Map == _client.MapInfo.Number)
+                    if (_client.MainTarget.IsOnScreen)
                     {
-                      if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
+                      if (_client.MainTarget.Map == _client.MapInfo.Number)
                       {
-                        _client.Refresh();
-                        Thread.Sleep(1200);
-                        _client.laststep = DateTime.MinValue;
-                      }
-                      if (_client.SurroundedCount == 0)
-                        _client.WalkToTarget();
-                      else if (_client.SurroundedCount != 4)
-                      {
-                        if (_client.Tab.attackleaderstarget.Checked)
+                        if (DateTime.UtcNow.Subtract(_client.laststep).TotalSeconds > 2.0 && (_client.ServerLocation.X != _client.ClientLocation.X || _client.ServerLocation.Y != _client.ClientLocation.Y))
+                        {
+                          _client.Refresh();
+                          Thread.Sleep(1200);
+                          _client.laststep = DateTime.MinValue;
+                        }
+                        if (_client.SurroundedCount == 0)
                           _client.WalkToTarget();
+                        else if (_client.SurroundedCount != 4)
+                        {
+                          if (_client.Tab.attackleaderstarget.Checked)
+                            _client.WalkToTarget();
+                        }
                       }
                     }
                   }
@@ -238,9 +232,16 @@ namespace slowpoke.Types
               }
             }
           }
+        label_92:
+          Thread.Sleep(200);
         }
-      label_92:
-        Thread.Sleep(200);
+        catch (Exception ex)
+        {
+          Console.WriteLine("Walk loop error: " + ex);
+
+          // prevent tight crash loop
+          Thread.Sleep(100);
+        }
       }
 
       Console.WriteLine($"Walk thread of {_client.Name} stopped.");

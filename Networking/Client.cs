@@ -788,7 +788,7 @@ namespace Flintstones
       BotCommandTask = Task.Run(() => BotLoop(_cts.Token));
     }
 
-    private bool IsIncapacitated()
+    public bool IsIncapacitated()
     {
       return this.IsSkulled
         || this.IsStunned
@@ -833,8 +833,8 @@ namespace Flintstones
               client.Tab.selfaopuinsein.Checked = true;
             if (client.Tab.selfaosuain.Visible)
               client.Tab.selfaosuain.Checked = true;
-            if (!client.BotThread.IsAlive)
-              client.BotThread.Start();
+            //if (!client.BotThread.IsAlive)
+            //  client.BotThread.Start();
             client.pause = false;
             client.Tab.btnPlay.Enabled = false;
             client.Tab.btnStop.Enabled = true;
@@ -866,8 +866,8 @@ namespace Flintstones
           this.Tab.selfaopuinsein.Checked = true;
         if (this.Tab.selfaosuain.Visible)
           this.Tab.selfaosuain.Checked = true;
-        if (!this.BotThread.IsAlive)
-          this.BotThread.Start();
+        //if (!this.BotThread.IsAlive)
+        //  this.BotThread.Start();
         this.pause = false;
         this.Tab.btnPlay.Enabled = false;
         this.Tab.btnStop.Enabled = true;
@@ -3890,8 +3890,8 @@ label_975:
               this.Tab.fastwalk.Checked = true;
               this.Tab.usemonster.Checked = true;
               this.walktut = true;
-              if (!this.BotThread.IsAlive)
-                this.BotThread.Start();
+              //if (!this.BotThread.IsAlive)
+              //  this.BotThread.Start();
               this.pause = false;
               this.Tab.btnPlay.Enabled = false;
               this.Tab.btnStop.Enabled = true;
@@ -5152,8 +5152,8 @@ label_975:
                 this.Tab.walklocaleslist.SelectedItem = (object) "SW 8 (DSS)";
                 this.Tab.autowalker_button.Text = "Stop";
                 this.autowalkon = true;
-                if (!this.BotThread.IsAlive)
-                  this.BotThread.Start();
+                //if (!this.BotThread.IsAlive)
+                //  this.BotThread.Start();
                 this.pause = false;
                 this.Tab.btnPlay.Enabled = false;
                 this.Tab.btnStop.Enabled = true;
@@ -7077,8 +7077,8 @@ label_1712:
               this.PopupNext(new uint?(currentnpcpopupId));
               this.PopupNext(new uint?(currentnpcpopupId));
               this.ballemoboy = 1;
-              if (!this.BotThread.IsAlive)
-                this.BotThread.Start();
+              //if (!this.BotThread.IsAlive)
+              //  this.BotThread.Start();
               this.pause = false;
               this.Tab.btnPlay.Enabled = false;
               this.Tab.btnStop.Enabled = true;
@@ -7151,8 +7151,8 @@ label_1712:
               this.PopupNext(new uint?(currentnpcpopupId));
               this.PopupNext(new uint?(currentnpcpopupId));
               this.ballemoboy = 3;
-              if (!this.BotThread.IsAlive)
-                this.BotThread.Start();
+              //if (!this.BotThread.IsAlive)
+              //  this.BotThread.Start();
               this.pause = false;
               this.Tab.btnPlay.Enabled = false;
               this.Tab.btnStop.Enabled = true;
@@ -14531,19 +14531,19 @@ label_860:
 
       try
       {
-        BotThreadRunning = false;
+        //BotThreadRunning = false;
         SpeakCommandThreadRunning = false;
         EntityNameThreadRunning = false;
         WalkThreadRunning = false;
         QuestThreadRunning = false;
 
-        if (BotThread != null && BotThread.IsAlive)
-        {
-          if (!BotThread.Join(2000))
-          {
-            Console.WriteLine($"Bot thread of {Name} did not exit in a timely manner, aborting.");
-          }
-        }
+        //if (BotThread != null && BotThread.IsAlive)
+        //{
+        //  if (!BotThread.Join(2000))
+        //  {
+        //    Console.WriteLine($"Bot thread of {Name} did not exit in a timely manner, aborting.");
+        //  }
+        //}
 
         _cts.Cancel(); // cancel running tasks
 

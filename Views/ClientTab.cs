@@ -768,8 +768,8 @@ namespace Flintstones
       this.walklocaleslist.SelectedItem = (object) "Entrance";
       this.autowalker_button.Text = "Stop";
       this.Client.autowalkon = true;
-      if (!this.Client.BotThread.IsAlive)
-        this.Client.BotThread.Start();
+      //if (!this.Client.BotThread.IsAlive)
+      //  this.Client.BotThread.Start();
       this.Client.pause = false;
       this.btnPlay.Enabled = false;
       this.btnStop.Enabled = true;

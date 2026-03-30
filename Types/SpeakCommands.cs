@@ -238,8 +238,8 @@ namespace Flintstones
     {
       client.Tab.autowalker_button.Text = "Stop";
       client.autowalkon = true;
-      if (!client.BotThread.IsAlive)
-        client.BotThread.Start();
+      //if (!client.BotThread.IsAlive)
+      //  client.BotThread.Start();
       client.pause = false;
       client.Tab.btnPlay.Enabled = false;
       client.Tab.btnStop.Enabled = true;
@@ -267,8 +267,8 @@ namespace Flintstones
     {
       if (args is null || args.Length == 0)
       {
-        if (!client.BotThread.IsAlive)
-          client.BotThread.Start();
+        //if (!client.BotThread.IsAlive)
+        //  client.BotThread.Start();
         client.pause = false;
         client.Tab.btnPlay.Enabled = false;
         client.Tab.btnStop.Enabled = true;
@@ -300,8 +300,8 @@ namespace Flintstones
     {
       if (args is null || args.Length == 0)
       {
-        if (!client.BotThread.IsAlive)
-          client.BotThread.Start();
+        //if (!client.BotThread.IsAlive)
+        //  client.BotThread.Start();
         client.pause = false;
         client.Tab.btnPlay.Enabled = false;
         client.Tab.btnStop.Enabled = true;
@@ -2217,8 +2217,8 @@ namespace Flintstones
     public void HalfTalisman(Client client, string[] args)
     {
       client.buy2ndtalisman = true;
-      if (!client.BotThread.IsAlive)
-        client.BotThread.Start();
+      //if (!client.BotThread.IsAlive)
+      //  client.BotThread.Start();
       client.pause = false;
       client.Tab.btnPlay.Enabled = false;
       client.Tab.btnStop.Enabled = true;
