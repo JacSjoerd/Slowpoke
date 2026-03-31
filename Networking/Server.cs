@@ -1667,12 +1667,7 @@ namespace Flintstones
       client.Tab.AscendOptions.statbuyupdate();
       client.Loaded = true;
       client.LoggedOn = true;
-      //if (!client.BotThread.IsAlive)
-      //  client.BotThread.Start();
-      //if (!client.EntityNameThread.IsAlive)
-      //  client.EntityNameThread.Start();
-      if (!client.QuestsThread.IsAlive)
-        client.QuestsThread.Start();
+
       if (client.Tab.pigwalk.Checked && client.HasItem("Ability and Experience Gift 1") && client.ItemAmount("Ability and Experience Gift 1") == 5U)
       {
         client.SendMessage("Stopped walking, you're at max stack of gift 1s", "red");

@@ -5475,7 +5475,7 @@ namespace Flintstones
             this.staffswitch.AutoSize = true;
             this.staffswitch.Checked = true;
             this.staffswitch.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.staffswitch.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            //this.staffswitch.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.staffswitch.Location = new System.Drawing.Point(28, 22);
             this.staffswitch.Name = "staffswitch";
             this.staffswitch.Size = new System.Drawing.Size(114, 19);
@@ -5641,7 +5641,7 @@ namespace Flintstones
             this.selfaite.Name = "selfaite";
             this.selfaite.Size = new System.Drawing.Size(15, 14);
             this.selfaite.TabIndex = 165;
-            this.selfaite.UseVisualStyleBackColor = true;
+            //this.selfaite.UseVisualStyleBackColor = true;
             this.selfaite.Visible = false;
             this.selfaite.CheckedChanged += new System.EventHandler(this.selfaite_CheckedChanged);
             // 

@@ -466,7 +466,7 @@ namespace Flintstones
       if (Server.WalkLocations.ContainsKey(SpeakMessage))
       {
         var location = Server.WalkLocations[SpeakMessage];
-        client.walkcommand(location.Area, location.Location, walkAll);
+        client._walkCommands.StartAutoWalk(location.Area, location.Location, walkAll);
       } 
       else 
       {
