@@ -59,6 +59,7 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Networking\GlobalConstants.cs" />
     <Compile Include="Types\Alts.cs" />
     <Compile Include="Types\AutoWalkDestinations.cs" />
     <Compile Include="Types\CharacterStats.cs" />
@@ -179,7 +180,6 @@
     <Compile Include="Types\User32.cs" />
     <Compile Include="Networking\Kernel32.cs" />
     <Compile Include="Types\Location.cs" />
-    <Compile Include="Types\Direction.cs" />
     <Compile Include="Forms\MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

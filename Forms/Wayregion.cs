@@ -136,7 +136,7 @@ namespace Flintstones
         {
           if (character is null) continue;
 
-          if (character.IsOnScreen && character.ID != this.Client.PlayerID && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster))
+          if (character.IsOnScreen && character.ID != this.Client.PlayerID && character is Npc && ((character as Npc).Type == NpcType.NormalMonster || (character as Npc).Type == NpcType.PassableMonster))
             graphics.FillRectangle(Brushes.Red, character.Location.X * this.matrix1.MaxtrixSize, character.Location.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
         }
         graphics.FillRectangle(Brushes.Goldenrod, this.Client.ServerLocation.X * this.matrix1.MaxtrixSize, this.Client.ServerLocation.Y * this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize, this.matrix1.MaxtrixSize);
@@ -171,7 +171,7 @@ namespace Flintstones
         npc.Location.Y = (int) y;
         npc.Location.Direction = Direction.West;
         npc.Image = 532;
-        npc.Type = Npc.NpcType.PassableMonster;
+        npc.Type = NpcType.PassableMonster;
         npc.Map = this.Client.MapInfo.Number;
       }
       else
@@ -183,7 +183,7 @@ namespace Flintstones
         npc.Location.Y = (int) y;
         npc.Location.Direction = Direction.West;
         npc.Image = 532;
-        npc.Type = Npc.NpcType.PassableMonster;
+        npc.Type = NpcType.PassableMonster;
         npc.Map = this.Client.MapInfo.Number;
       }
     }
@@ -350,7 +350,7 @@ namespace Flintstones
             npc.Location.Y = y;
             npc.Location.Direction = Direction.West;
             npc.Image = 532;
-            npc.Type = Npc.NpcType.PassableMonster;
+            npc.Type = NpcType.PassableMonster;
             npc.Map = mapNum.Number;
           }
         }
