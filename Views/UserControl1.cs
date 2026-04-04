@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace slowpoke.Views
+namespace Slowpoke.Views
 {
     public partial class UserControl1 : UserControl
     {

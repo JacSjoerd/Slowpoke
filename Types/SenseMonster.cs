@@ -6,6 +6,10 @@
 
 namespace Flintstones
 {
+
+  /// <summary>
+  /// SenseMonster DTO class
+  /// </summary>
   public class SenseMonster
   {
     public string Name { get; set; }

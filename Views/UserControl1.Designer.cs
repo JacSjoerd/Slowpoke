@@ -1,4 +1,4 @@
-﻿namespace slowpoke.Views
+﻿namespace Slowpoke.Views
 {
     partial class UserControl1
     {

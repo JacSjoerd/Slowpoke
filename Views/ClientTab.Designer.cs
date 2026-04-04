@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace slowpoke.Views {
+namespace Slowpoke.Views {
     using System;
     
     

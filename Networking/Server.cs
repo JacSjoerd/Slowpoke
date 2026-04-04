@@ -4,6 +4,11 @@
 //SlowPoke
 //SlowPoke
 
+using Slowpoke.Chat;
+using Slowpoke.Networking.Login;
+using Slowpoke.Spells;
+using Slowpoke.Walking;
+using Slowpoke.Inventory;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -179,12 +184,16 @@ namespace Flintstones
         this.ClientMessageHandlers[index] = (ClientMessageHandler) ((client, msg) => true);
       for (int index = 0; index < this.ServerMessageHandlers.Length; ++index)
         this.ServerMessageHandlers[index] = (ServerMessageHandler) ((client, msg) => true);
-      this.ClientMessageHandlers[3] = new ClientMessageHandler(this.ClientMessage_0x03_LogIn);
-      this.ClientMessageHandlers[6] = new ClientMessageHandler(this.ClientMessage_0x06_Walking);
-      this.ClientMessageHandlers[8] = new ClientMessageHandler(this.ClientMessage_0x08_Drop);
+      //this.ClientMessageHandlers[3] = new ClientMessageHandler(this.ClientMessage_0x03_LogIn);
+      this.ClientMessageHandlers[3] = LoginSystem.HandleLogin;
+      //this.ClientMessageHandlers[6] = new ClientMessageHandler(this.ClientMessage_0x06_Walking);
+      this.ClientMessageHandlers[6] = WalkingSystem.HandleWalking;
+      //this.ClientMessageHandlers[8] = new ClientMessageHandler(this.ClientMessage_0x08_Drop);
+      this.ClientMessageHandlers[8] = DropSystem.HandleDrop;
       this.ClientMessageHandlers[11] = new ClientMessageHandler(this.ClientMessage_0x0B_LogOut);
       this.ClientMessageHandlers[14] = new ClientMessageHandler(this.ClientMessage_0x0E_Speak);
-      this.ClientMessageHandlers[15] = new ClientMessageHandler(this.ClientMessage_0x0F_UseSpell);
+      //this.ClientMessageHandlers[15] = new ClientMessageHandler(this.ClientMessage_0x0F_UseSpell);
+      this.ClientMessageHandlers[15] = SpellSystem.HandleUseSpell;
       this.ClientMessageHandlers[16] = new ClientMessageHandler(this.ClientMessage_0x10_ClientJoin);
       this.ClientMessageHandlers[19] = new ClientMessageHandler(this.ClientMessage_0x13_Assail);
       this.ClientMessageHandlers[28] = new ClientMessageHandler(this.ClientMessage_0x1C_UseItem);
@@ -205,15 +214,18 @@ namespace Flintstones
       this.ServerMessageHandlers[10] = new ServerMessageHandler(this.ServerMessage_0x0A_SystemMessage);
       this.ServerMessageHandlers[11] = new ServerMessageHandler(this.ServerMessage_0x0B_MoveClient);
       this.ServerMessageHandlers[12] = new ServerMessageHandler(this.ServerMessage_0x0C_MoveCharacter);
-      this.ServerMessageHandlers[13] = new ServerMessageHandler(this.ServerMessage_0x0D_Chat);
+      //this.ServerMessageHandlers[13] = new ServerMessageHandler(this.ServerMessage_0x0D_Chat);
+      this.ServerMessageHandlers[13] = ChatSystem.HandleChat;
       this.ServerMessageHandlers[14] = new ServerMessageHandler(this.ServerMessage_0x0E_RemoveCharacter);
       this.ServerMessageHandlers[15] = new ServerMessageHandler(this.ServerMessage_0x0F_AddItem);
       this.ServerMessageHandlers[16] = new ServerMessageHandler(this.ServerMessage_0x10_RemoveItem);
       this.ServerMessageHandlers[17] = new ServerMessageHandler(this.ServerMessage_0x11_CharacterTurn);
       this.ServerMessageHandlers[19] = new ServerMessageHandler(this.ServerMessage_0x13_HpBar);
       this.ServerMessageHandlers[21] = new ServerMessageHandler(this.ServerMessage_0x15_MapInfo);
-      this.ServerMessageHandlers[23] = new ServerMessageHandler(this.ServerMessage_0x17_AddSpell);
-      this.ServerMessageHandlers[24] = new ServerMessageHandler(this.ServerMessage_0x18_RemoveSpell);
+      //this.ServerMessageHandlers[23] = new ServerMessageHandler(this.ServerMessage_0x17_AddSpell);
+      this.ServerMessageHandlers[23] = SpellBookSystem.HandleAddSpell;
+      //this.ServerMessageHandlers[24] = new ServerMessageHandler(this.ServerMessage_0x18_RemoveSpell);
+      this.ServerMessageHandlers[24] = SpellBookSystem.HandleRemoveSpell;
       this.ServerMessageHandlers[25] = new ServerMessageHandler(this.ServerMessage_0x19_SoundEffect);
       this.ServerMessageHandlers[26] = new ServerMessageHandler(this.ServerMessage_0x1A_BodyAnimation);
       this.ServerMessageHandlers[31] = new ServerMessageHandler(this.ServerMessage_0x1F_NewMap);
@@ -231,7 +243,8 @@ namespace Flintstones
       this.ServerMessageHandlers[56] = new ServerMessageHandler(this.ServerMessage_0x38_RemoveAppendage);
       this.ServerMessageHandlers[57] = new ServerMessageHandler(this.ServerMessage_0x39_Profile);
       this.ServerMessageHandlers[58] = new ServerMessageHandler(this.ServerMessage_0x3A_SpellBar);
-      this.ServerMessageHandlers[63] = new ServerMessageHandler(this.ServerMessage_0x3F_Cooldown);
+      //this.ServerMessageHandlers[63] = new ServerMessageHandler(this.ServerMessage_0x3F_Cooldown);
+      this.ServerMessageHandlers[63] = CooldownSystem.HandleCooldown;
       this.ServerMessageHandlers[66] = new ServerMessageHandler(this.ServerMessage_0x42_ExchangeWindow);
       this.ServerMessageHandlers[76] = new ServerMessageHandler(this.ServerMessage_0x4C_LogOffSignal);
       this.ServerMessageHandlers[96] = new ServerMessageHandler(this.ServerMessage_0x60_OK);
@@ -993,8 +1006,11 @@ namespace Flintstones
         Server.DARegged.Add(client.Name, false);
       else
         Server.DARegged[client.Name] = false;
+      Logger.Debug($"Login attempt: {client.Name}, SpoofId:{SpoofClientId}");
       if (this.SpoofClientId != 1 && this.SpoofClientId != 2)
         return true;
+      Logger.Debug($"Login attempt: {client.Name}, SpoofId:{SpoofClientId}");
+
       string name = client.Name;
       string password = client.Password;
       int num1 = (int) msg.ReadByte();
@@ -1090,7 +1106,11 @@ namespace Flintstones
       ushort num2 = msg.ReadUInt16();
       ushort num3 = msg.ReadUInt16();
       int num4 = (int) msg.ReadUInt32();
-      if (!client.HasItem("Warranty Bag") || !(client.Inventory[(int) num1 - 1].Name == "Succubus's Hair") || !client.MapInfo.Name.Equals("Mileth Village") || !num2.Equals((ushort) 31) || !num3.Equals((ushort) 52) && !num3.Equals((ushort) 53))
+      if (!client.HasItem("Warranty Bag") 
+        || !(client.Inventory[(int) num1 - 1].Name == "Succubus's Hair") 
+        || !client.MapInfo.Name.Equals("Mileth Village") 
+        || !num2.Equals((ushort) 31) 
+        || !num3.Equals((ushort) 52) && !num3.Equals((ushort) 53))
         return true;
       client.SendMessage("Deposit your Warranty Bag first.", "red");
       return false;
@@ -3765,6 +3785,7 @@ namespace Flintstones
       spell.Name = msg.ReadString((int) msg.ReadByte());
       spell.Prompt = msg.ReadString((int) msg.ReadByte());
       spell.CastLines = (int) msg.ReadByte();
+
       Match match = Regex.Match(spell.Name, "(.*?)( \\(Lev:)(\\d+)(\\/)(\\d+)(\\))");
       if (match.Success)
       {
@@ -3788,6 +3809,7 @@ namespace Flintstones
       client.SpellBook[spell.SpellSlot - 1] = spell;
       if (spell.Name.Contains("Prayer"))
         client.PrayerSpell = spell.Name;
+
       if (spell.Name != "nis" && spell.Name != "Learning Spell")
       {
         if (client.Tab.MacroOptions.macrospellslistview.Items.ContainsKey(spell.Name) && client.Tab.MacroOptions.macrospellslistview.Items[spell.Name] != null && spell.CurrentLevel < int.Parse(client.Tab.MacroOptions.macrospellslistview.Items[spell.Name].SubItems[2].Text))
@@ -5912,7 +5934,7 @@ namespace Flintstones
           if (spell != null)
           {
             client.GlobalSpellCD = DateTime.UtcNow;
-            spell.NextUse = num3 <= 0U ? DateTime.UtcNow.AddMilliseconds(335.0) : DateTime.UtcNow.AddMilliseconds((double) (num3 * 1000U));
+            spell.NextUse = num3 <= 0U ? DateTime.UtcNow.AddMilliseconds(3350) : DateTime.UtcNow.AddMilliseconds((double) (num3 * 1000U));
           }
         }
       }

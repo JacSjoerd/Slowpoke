@@ -4,7 +4,7 @@
 //SlowPoke
 //SlowPoke
 
-using slowpoke.Types;
+using Slowpoke.Types;
 using System;
 using System.Collections;
 using System.Collections.Generic;
