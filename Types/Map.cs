@@ -236,7 +236,7 @@ namespace Flintstones
                 }
                 continue;
               case Npc _:
-                num = (character as Npc).Type == NpcType.PassableMonster || character.Map != client.MapInfo.Number ? 0 : ((character as Npc).Type != NpcType.Item ? 1 : 0);
+                num = (character as Npc).Type == Npc.NpcType.PassableMonster || character.Map != client.MapInfo.Number ? 0 : ((character as Npc).Type != Npc.NpcType.Item ? 1 : 0);
                 break;
               default:
                 num = 1;

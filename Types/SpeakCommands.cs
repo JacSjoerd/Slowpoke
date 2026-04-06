@@ -249,7 +249,7 @@ namespace Flintstones
     private uint findCloseMundane(Client client)
     {
       uint npcID = 0;
-      Npc[] npcList = client.NearbyNpcs(NpcType.Mundane);
+      Npc[] npcList = client.NearbyNpcs(Npc.NpcType.Mundane);
       if (npcList != null && npcList.Length > 0)
       {
         npcID = npcList[0].ID;
@@ -645,7 +645,7 @@ namespace Flintstones
     /// <param name="args"></param>
     public void BankList(Client client, string[] args)
     {
-      Npc[] source = client.NearbyNpcs(NpcType.Mundane);
+      Npc[] source = client.NearbyNpcs(Npc.NpcType.Mundane);
       if (source.Count<Npc>() > 0)
       {
         client.banklist = true;
@@ -1855,7 +1855,7 @@ namespace Flintstones
       {
         if (!client.HasItem("Wine") || client.ItemAmount("Wine") < 15U)
         {
-          foreach (Npc npc in client.NearbyNpcs(NpcType.Mundane))
+          foreach (Npc npc in client.NearbyNpcs(Npc.NpcType.Mundane))
           {
             if (npc != null)
             {

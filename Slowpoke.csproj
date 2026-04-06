@@ -206,6 +206,7 @@
     <Compile Include="Types\User32.cs" />
     <Compile Include="Networking\Kernel32.cs" />
     <Compile Include="Types\Location.cs" />
+    <Compile Include="Types\Direction.cs" />
     <Compile Include="Forms\MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -28,7 +28,7 @@ namespace Flintstones
           {
             if (_client.needsrepaired && _client.Currentnpctext == "")
             {
-              Npc[] npcArray1 = _client.NearbyNpcs(NpcType.Mundane);
+              Npc[] npcArray1 = _client.NearbyNpcs(Npc.NpcType.Mundane);
               if (npcArray1 != null)
               {
                 Npc[] npcArray2 = npcArray1;
@@ -101,7 +101,7 @@ namespace Flintstones
             }
             if (_client.staffnow == "Fishing Rod" && _client.HasItem("Fishing Bait"))
             {
-              foreach (Npc npc in (IEnumerable<Npc>)_client.NearbyNpcs(NpcType.Mundane).OrderBy(n => n.DistanceFrom(_client.ServerLocation)))
+              foreach (Npc npc in (IEnumerable<Npc>)_client.NearbyNpcs(Npc.NpcType.Mundane).OrderBy(n => n.DistanceFrom(_client.ServerLocation)))
               {
                 if (npc != null && npc.Image == 583 && npc.DistanceFrom(_client.ServerLocation) <= 5)
                 {
@@ -749,7 +749,7 @@ namespace Flintstones
             }
             if (_client.MapInfo.Number == 509)
             {
-              foreach (Npc nearbyNpc in _client.NearbyNpcs(NpcType.Mundane))
+              foreach (Npc nearbyNpc in _client.NearbyNpcs(Npc.NpcType.Mundane))
               {
                 if (nearbyNpc != null && nearbyNpc.IsOnScreen)
                 {

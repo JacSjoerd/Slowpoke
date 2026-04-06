@@ -23,7 +23,6 @@ using System.Timers;
 using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
-using static Flintstones.GlobalConstants;
 
 
 namespace Flintstones
@@ -2603,7 +2602,7 @@ namespace Flintstones
                             this.MacroCast(listViewItem2.Text, new uint?(this.PlayerID));
                           foreach (Character character in (IEnumerable<Character>)this.Characters.Values.OrderBy<Character, int>((Func<Character, int>)(c => c.Location.DistanceFrom(this.ServerLocation))))
                           {
-                            if (character != null && character.IsOnScreen && (character is Player && (character as Player).Body != (byte)0 || character is Npc && (character as Npc).Type == NpcType.NormalMonster) && !character.hasregen)
+                            if (character != null && character.IsOnScreen && (character is Player && (character as Player).Body != (byte)0 || character is Npc && (character as Npc).Type == Npc.NpcType.NormalMonster) && !character.hasregen)
                               this.MacroCast(listViewItem2.Text, new uint?(character.ID));
                           }
                         }
@@ -2642,7 +2641,7 @@ namespace Flintstones
                       {
                         foreach (Character character in (IEnumerable<Character>)this.Characters.Values.OrderBy<Character, int>((Func<Character, int>)(c => c.Location.DistanceFrom(this.ServerLocation))))
                         {
-                          if (character != null && character is Npc && ((character as Npc).Type == NpcType.NormalMonster || (character as Npc).Type == NpcType.PassableMonster) && character.IsOnScreen)
+                          if (character != null && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster) && character.IsOnScreen)
                           {
                             this.MacroCast(text1, new uint?(character.ID));
                             break;
@@ -2680,419 +2679,6 @@ namespace Flintstones
         }
       }
     }
-
-    public void UpdatePlayerID(uint playerID, byte path, byte gender)
-    {
-      PlayerID = playerID;
-      myPath = path;
-      Gender = gender;
-
-      // Set path stats using CharacterClass enum to identify class in maxClassStats dictionary
-      CharacterClass activeClass = (CharacterClass)this.myPath;
-      this.pathmaxhp = this.maxClassStats[activeClass].Maxhp;
-      this.pathstr = this.maxClassStats[activeClass].Str;
-      this.pathint = this.maxClassStats[activeClass].Int;
-      this.pathwis = this.maxClassStats[activeClass].Wis;
-      this.pathcon = this.maxClassStats[activeClass].Con;
-      this.pathdex = this.maxClassStats[activeClass].Dex;
-
-      this.GetHandle();
-      this.BestAites();
-      this.BestFases();
-      this.BestIocs();
-      this.BestDions();
-      this.BestCradhs();
-      this.BestPramhs();
-      this.BestAttacks1();
-      this.BestAttacks2();
-      this.SpellsAppear();
-      this.SkillsAppear();
-      this.TrinketsAppear();
-      this.Tab.PopulateLureList();
-      this.LoadMacroList();
-      this.MacroSpells();
-      Program.MainForm.AddTab(this.Tab);
-      if (!Server.Alts.ContainsKey(this.Name.ToLower()))
-        Server.Alts.Add(this.Name.ToLower(), this);
-      if (!Server.friendlist.Contains(this.Name.ToLower()))
-      {
-        Program.MainForm.friendlistbox.Items.Add((object)this.Name.ToLower());
-        Program.MainForm.SaveFriends();
-        Server.UpdateFriends();
-      }
-      foreach (Client client1 in Server.Alts.Values.ToArray<Client>())
-      {
-        if (client1 != null && client1.targetplayer != null)
-        {
-          foreach (targetPlayer targetPlayer in client1.targetplayer)
-            targetPlayer?.updatePlayerTargets();
-        }
-      }
-      this.Tab.LoadTemplates();
-      if (Server.Relog.ContainsKey(this.Name))
-      {
-        this.Tab.LoadTemplate(AfterRelog: true);
-        this.Relogged();
-      }
-      else
-      {
-        if (!System.IO.File.Exists(Program.StartupPath + "\\Settings\\" + this.Name.ToLower() + "\\default.xml"))
-          this.Tab.SaveTemplate("default");
-        else if (Program.MainForm.preload.Checked && Program.MainForm.preloadtemplate.Text != string.Empty)
-          this.Tab.LoadTemplate(Program.MainForm.preloadtemplate.Text);
-        else
-          this.Tab.LoadTemplate("default");
-        if (Program.MainForm.pregroup.Checked && Program.MainForm.pregroupname.Text != string.Empty)
-          this.ForceGroup(Program.MainForm.pregroupname.Text, (byte)3);
-        if (Program.MainForm.preplay.Checked)
-        {
-          this.pause = false;
-          this.Tab.btnPlay.Enabled = false;
-          this.Tab.btnStop.Enabled = true;
-        }
-      }
-      this.IniTimedStuff();
-      foreach (Client client2 in Server.Alts.Values.ToArray<Client>())
-      {
-        if (client2 != null && client2.Name != this.Name && client2.Name != string.Empty && (client2.Tab.requestlabornametext.Text == string.Empty || client2.Tab.requestlabornametext.Text == this.Name))
-        {
-          client2.Tab.requestlabornametext.Text = this.Name;
-          if (client2.waitingforlabor)
-            client2.Whisper(this.Name, client2.Tab.requestlabormessagetext.Text);
-        }
-      }
-      if (Program.MainForm.loglabormules.Checked && Program.MainForm.labormulelist.Items.Count > 0)
-      {
-        foreach (object obj in Program.MainForm.labormulelist.Items)
-        {
-          if (obj.ToString().ToLower().Contains(this.Name.ToLower()))
-          {
-            this.Tab.laborname.Text = Program.MainForm.laborname.Text;
-            this.Tab.btnPlay.PerformClick();
-            this.Tab.autowalker_locales.Text = "Nearest Bank";
-            this.Tab.walksettings.Value = 160M;
-            this.Tab.fastwalk.Checked = true;
-            this.Tab.autowalker_button.Text = "Stop";
-            this.autowalkon = true;
-            break;
-          }
-        }
-      }
-      else if (Program.MainForm.getmentored.Checked && Program.MainForm.labormulelist.Items.Count > 0)
-      {
-        foreach (object obj in Program.MainForm.labormulelist.Items)
-        {
-          if (obj.ToString().ToLower().Contains(this.Name.ToLower()))
-          {
-            this.Tab.btnPlay.PerformClick();
-            this.Tab.autowalker_locales.Text = "Rucesion";
-            this.Tab.walklocaleslist.SelectedItem = (object)"Armor Shop";
-            this.Tab.walksettings.Value = 240M;
-            this.Tab.autowalker_button.Text = "Stop";
-            this.autowalkon = true;
-            break;
-          }
-        }
-      }
-      else if (Program.MainForm.logpigchase.Checked && Program.MainForm.labormulelist.Items.Count > 0)
-      {
-        foreach (object obj in Program.MainForm.labormulelist.Items)
-        {
-          if (obj.ToString().ToLower().Contains(this.Name.ToLower()))
-          {
-            this.Tab.btnPlay.PerformClick();
-            this.Tab.autowalker_locales.Text = "Loures";
-            this.Tab.walklocaleslist.SelectedItem = (object)"Maze";
-            this.Tab.walksettings.Value = 250M;
-            this.Tab.autowalker_button.Text = "Stop";
-            this.autowalkon = true;
-            this.Tab.pigwalk.Checked = true;
-            break;
-          }
-        }
-      }
-      else if (Program.MainForm.frostylog.Checked && Program.MainForm.labormulelist.Items.Count > 0)
-      {
-        foreach (object obj in Program.MainForm.labormulelist.Items)
-        {
-          if (obj.ToString().ToLower().Contains(this.Name.ToLower()))
-          {
-            this.Tab.btnPlay.PerformClick();
-            this.Tab.autowalker_locales.Text = "Loures";
-            this.Tab.walklocaleslist.SelectedItem = (object)"Frosty (x-mas)";
-            this.Tab.walksettings.Value = 250M;
-            this.Tab.autowalker_button.Text = "Stop";
-            this.autowalkon = true;
-            this.frostygift = true;
-            break;
-          }
-        }
-      }
-      this.RequestGroupList();
-      this.LoadVariables();
-      this.Tab.AscendOptions.statbuyupdate();
-      this.Loaded = true;
-      this.LoggedOn = true;
-
-      if (this.Tab.pigwalk.Checked && this.HasItem("Ability and Experience Gift 1") && this.ItemAmount("Ability and Experience Gift 1") == 5U)
-      {
-        this.SendMessage("Stopped walking, you're at max stack of gift 1s", "red");
-        this.pause = true;
-        this.Tab.btnPlay.Enabled = true;
-        this.Tab.btnStop.Enabled = false;
-      }
-      if (this.Tab.pigwalk.Checked && this.HasItem("Ability and Experience Gift 2") && this.ItemAmount("Ability and Experience Gift 2") == 5U)
-      {
-        this.SendMessage("Stopped walking, you're at max stack of gift 2s", "red");
-        this.pause = true;
-        this.Tab.btnPlay.Enabled = true;
-        this.Tab.btnStop.Enabled = false;
-      }
-    }
-
-    internal void DisplayNPC(Npc npc)
-    {
-      DateTime utcNow;
-      TimeSpan timeSpan;
-
-      if (npc.Image < 32768)
-      {
-        if (npc.Type == NpcType.Mundane)
-        {
-          if (this.Tab.recordmaps.Checked && npc.Name != "Fish" && !Server.gamenpcs.ContainsKey(npc.Name + npc.Map.ToString()))
-          {
-            RootNpc rootNpc = new RootNpc();
-            rootNpc.name = npc.Name;
-            rootNpc.x = npc.Location.X.ToString();
-            rootNpc.y = npc.Location.Y.ToString();
-            rootNpc.direction = npc.Location.Direction == Direction.South ? Direction.East.ToString() : npc.Location.Direction.ToString(); // Make mundanes look east when facing south
-            rootNpc.mapnum = npc.Map.ToString();
-            rootNpc.mapname = npc.MapName;
-            int num5 = npc.Image - ImageOffset;
-            rootNpc.img = num5.ToString("D3");
-            rootNpc.anidelay = "8";
-            rootNpc.colrect = "16,18,27,58";
-
-            Server.gamenpcs.Add(npc.Name + npc.Map.ToString(), rootNpc);
-          }
-        }
-        if (!Server.StaticCharacters.ContainsKey(npc.ID))
-          Server.StaticCharacters.Add(npc.ID, npc);
-        if (!this.Characters.ContainsKey(npc.ID))
-        {
-          int imageId = npc.Image - ImageOffset;
-          if (npc.MapName.Equals("Lost Ruins 2") && ImageOffset == 422)
-          {
-            foreach (Npc npc2 in ((IEnumerable<Npc>)this.NearbyMonstersByImage("422")).ToArray<Npc>())
-            {
-              if (npc2 != null && npc2.isParentGrime && npc2.DistanceFrom(npc.Location) == 1)
-              {
-                npc.isGrimeSpawn = true;
-                break;
-              }
-            }
-          }
-          if (this.Tab.recorditemdata.Checked)
-          {
-            if (npc.MapName.Contains("Astrid") && ImageOffset == 50)
-            {
-              foreach (Npc npc3 in ((IEnumerable<Npc>)this.NearbyMonstersByImage("2")).ToArray<Npc>())
-              {
-                if (npc3 != null && npc3.DistanceFrom(npc.Location) == 1)
-                {
-                  npc.wassummoned = true;
-                  break;
-                }
-              }
-            }
-            if ((npc.MapName.Contains("Shifting Swamp") || npc.MapName.Contains("Chandi")) && (ImageOffset == 85 || ImageOffset == 88 || ImageOffset == 89))
-            {
-              foreach (Npc npc4 in this.NearbyMonstersByImage("102").ToArray<Npc>())
-              {
-                if (npc4 != null && npc4.DistanceFrom(npc.Location) == 1)
-                {
-                  npc.wassummoned = true;
-                  break;
-                }
-              }
-            }
-          }
-          npc.CreateTime = DateTime.UtcNow;
-          npc.InViewTime = DateTime.UtcNow;
-          this.Characters.Add(npc.ID, (Character)npc);
-        }
-        else
-        {
-          this.Characters[npc.ID].InViewTime = DateTime.UtcNow;
-          this.Characters[npc.ID].Map = npc.Map;
-          this.Characters[npc.ID].Location.X = npc.Location.X;
-          this.Characters[npc.ID].Location.Y = npc.Location.Y;
-          this.Characters[npc.ID].Location.Direction = npc.Location.Direction;
-          this.Characters[npc.ID].IsOnScreen = true;
-        }
-      }
-      else
-      {
-        npc.Type = NpcType.Item;
-        npc.SpawnLocation.X = npc.Location.X;
-        npc.SpawnLocation.Y = npc.Location.Y;
-        if (!Server.StaticCharacters.ContainsKey(npc.ID))
-          Server.StaticCharacters.Add(npc.ID, (Character)npc);
-        if (!this.Characters.ContainsKey(npc.ID))
-        {
-          npc.CreateTime = DateTime.UtcNow;
-          npc.InViewTime = DateTime.UtcNow;
-          this.Characters.Add(npc.ID, (Character)npc);
-          int num6;
-          if (this.lastdroploc != null && npc.Location.X == this.lastdroploc.X && npc.Location.Y == this.lastdroploc.Y)
-          {
-            utcNow = DateTime.UtcNow;
-            timeSpan = utcNow.Subtract(this.lastdroptime);
-            num6 = timeSpan.TotalMilliseconds < 800.0 ? 1 : 0;
-          }
-          else
-            num6 = 0;
-          if (num6 != 0)
-          {
-            this.Characters[npc.ID].Looted = true;
-            this.lastdroploc = (Location)null;
-            this.lastdroptime = DateTime.UtcNow;
-          }
-        }
-        else
-        {
-          this.Characters[npc.ID].InViewTime = DateTime.UtcNow;
-          this.Characters[npc.ID].Map = npc.Map;
-          this.Characters[npc.ID].Location.X = npc.Location.X;
-          this.Characters[npc.ID].Location.Y = npc.Location.Y;
-          this.Characters[npc.ID].IsOnScreen = true;
-        }
-        if (this.Tab.getrealnames.Checked && npc.Location.X == this.ClientLocation.X && npc.Location.Y == this.ClientLocation.Y)
-          this.DistanceLook((ushort)npc.Location.X, (ushort)npc.Location.Y);
-      }
-      npc.Image -= 16384;
-      int num7;
-      if (npc.Image == 156 && Program.MainForm.champalert.Checked)
-      {
-        if (!(Server.alarmTimer == DateTime.MinValue))
-        {
-          utcNow = DateTime.UtcNow;
-          timeSpan = utcNow.Subtract(Server.alarmTimer);
-          if (timeSpan.TotalSeconds <= 60.0)
-            goto label_52;
-        }
-        if (!(this.Alertdelay == DateTime.MinValue))
-        {
-          utcNow = DateTime.UtcNow;
-          timeSpan = utcNow.Subtract(this.Alertdelay);
-          num7 = timeSpan.TotalSeconds > 60.0 ? 1 : 0;
-          goto label_53;
-        }
-        else
-        {
-          num7 = 1;
-          goto label_53;
-        }
-      }
-    label_52:
-      num7 = 0;
-    label_53:
-      if (num7 != 0)
-      {
-        SendMessage("Carnun Champion spotted!", "red");
-        if (!Server.SentryAlarm)
-        {
-          Server.SentryAlarm = true;
-          Server.alarm = new SoundPlayer(Assembly.GetExecutingAssembly().GetManifestResourceStream("Flintstones.chime.wav"));
-          Server.alarmTimer = DateTime.UtcNow;
-          Server.alarm.Play();
-        }
-      }
-
-      if (npc.Image == 3 && npc.Location == this.ServerLocation)
-      {
-        utcNow = DateTime.UtcNow;
-        timeSpan = utcNow.Subtract(npc.CreateTime);
-        if (timeSpan.TotalSeconds < 1.0)
-        {
-          this.Disenchanter = npc;
-          this.disenchanterappears = true;
-        }
-      }
-
-      // Item alerts
-      if (npc.Image == 258)
-      {
-        string text = $"Golden Floppy at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 401 && MapInfo.Number == 8433)
-      {
-        string text = $"Chadul Creeper at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 400 && MapInfo.Number == 8436)
-      {
-        string text = $"Chadul Frieza at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 397 && MapInfo.Number == 8439)
-      {
-        string text = $"Chadul Gohma at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 707 && MapInfo.Number == 8441)
-      {
-        string text = $"Chadul Koopa at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 650 && MapInfo.Number == 8446)
-      {
-        string text = $"Chadul Predator at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 401 && MapInfo.Number == 8101)
-      {
-        string text = $"Crypt Mini at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 205 && MapInfo.Number == 8111)
-      {
-        string text = $"Crypt Mini at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 397 && MapInfo.Number == 8120)
-      {
-        string text = $"Shade of Ealagad at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 18165)
-      {
-        string text = $"Anklet at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 17862)
-      {
-        string text = $"Dochas Bloom at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 17863)
-      {
-        string text = $"Lily Pads at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 17874)
-      {
-        string text = $"Kobold Tail at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-      if (npc.Image == 17890)
-      {
-        string text = $"Cactus Flower at {npc.Location.X},{npc.Location.Y}";
-        SendMessage(text, (byte)11);
-      }
-    }
-
 
     private void LaborReset()
     {
@@ -13416,7 +13002,7 @@ namespace Flintstones
         if (!this.Tab.haxdeposit.Checked || !this.SafeToWalkFast)
           return;
         uint num = 0;
-        Npc[] source = this.NearbyNpcs(NpcType.Mundane);
+        Npc[] source = this.NearbyNpcs(Npc.NpcType.Mundane);
         if (((IEnumerable<Npc>)source).Count<Npc>() > 0)
         {
           foreach (Npc npc in source)
@@ -14145,7 +13731,7 @@ namespace Flintstones
       Npc npc = (Npc)null;
       foreach (Character character in (IEnumerable<Character>)((IEnumerable<Character>)this.Characters.Values.ToArray<Character>()).OrderBy<Character, int>((Func<Character, int>)(c => c.Location.DistanceFrom(this.ServerLocation))))
       {
-        if (character != null && character is Npc && character.IsOnScreen && ((character as Npc).Type == NpcType.NormalMonster || (character as Npc).Type == NpcType.PassableMonster))
+        if (character != null && character is Npc && character.IsOnScreen && ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster))
         {
           npc = character as Npc;
           break;
@@ -18179,7 +17765,7 @@ namespace Flintstones
       {
         foreach (Character character in this.Characters.Values.ToArray<Character>())
         {
-          if (character != null && character.IsOnScreen && character.IsInMaxView(this.ServerLocation, 12) && character is Npc && ((character as Npc).Type == NpcType.NormalMonster && (character as Npc).Image != 552 || (character as Npc).Type == NpcType.PassableMonster && (character as Npc).Image != 451 && (character as Npc).Image != 3) && (!character.Moved && !character.wassummoned || character.Name == string.Empty || DateTime.UtcNow.Subtract(character.CreateTime).TotalSeconds <= 16.0))
+          if (character != null && character.IsOnScreen && character.IsInMaxView(this.ServerLocation, 12) && character is Npc && ((character as Npc).Type == Npc.NpcType.NormalMonster && (character as Npc).Image != 552 || (character as Npc).Type == Npc.NpcType.PassableMonster && (character as Npc).Image != 451 && (character as Npc).Image != 3) && (!character.Moved && !character.wassummoned || character.Name == string.Empty || DateTime.UtcNow.Subtract(character.CreateTime).TotalSeconds <= 16.0))
             return true;
         }
       }
@@ -18393,7 +17979,7 @@ namespace Flintstones
                 num = !character.IsInMaxView(this.ServerLocation, 12) ? 1 : 0;
                 goto label_7;
               case Npc _:
-                if ((character as Npc).Type == NpcType.NormalMonster || (character as Npc).Type == NpcType.PassableMonster)
+                if ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster)
                   goto label_4;
                 else
                   break;
@@ -18442,7 +18028,7 @@ namespace Flintstones
                       else
                         break;
                     case Npc _:
-                      if ((character as Npc).Type == NpcType.NormalMonster || (character as Npc).Type == NpcType.PassableMonster)
+                      if ((character as Npc).Type == Npc.NpcType.NormalMonster || (character as Npc).Type == Npc.NpcType.PassableMonster)
                         goto label_27;
                       else
                         break;
@@ -18460,7 +18046,7 @@ namespace Flintstones
       return default(T);
     }
 
-    public Npc[] NearbyNpcs(NpcType npcType)
+    public Npc[] NearbyNpcs(Npc.NpcType npcType)
     {
       List<Npc> npcList = new List<Npc>();
       lock (this.Characters)
@@ -18525,7 +18111,7 @@ namespace Flintstones
         {
           foreach (Character character in new Dictionary<uint, Character>((IDictionary<uint, Character>)this.Characters).Values)
           {
-            if (character != null && Server.StaticCharacters.ContainsKey(character.ID) && (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) != 0 && !character.IsDead && character.IsOnScreen && character is Npc && character.IsInMaxView(this.ServerLocation, 12) && (character as Npc).Type == NpcType.NormalMonster)
+            if (character != null && Server.StaticCharacters.ContainsKey(character.ID) && (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) != 0 && !character.IsDead && character.IsOnScreen && character is Npc && character.IsInMaxView(this.ServerLocation, 12) && (character as Npc).Type == Npc.NpcType.NormalMonster)
             {
               if ((character as Npc).Image != 648 && (character as Npc).Image != 412 && (character as Npc).Image != 641 && (character as Npc).Image != 543 && (character as Npc).Image != 456 && (character as Npc).Image != 414 && (character as Npc).Image != 160 && (character as Npc).Image != 79 && (character as Npc).Image != 510 && (character as Npc).Image != 53 && (character as Npc).Image != 492 && (character as Npc).Image != 195 && (character as Npc).Image != 392 && (character as Npc).Image != 405 && (character as Npc).Image != 676 && (character as Npc).Image != 691 && (character as Npc).Image != 699 && (character as Npc).Image != 700 && (character as Npc).Image != 701 && (character as Npc).Image != 49 && (character as Npc).Image != 87)
               {
@@ -18535,7 +18121,7 @@ namespace Flintstones
                   npcList.Add((Npc)character);
               }
             }
-            else if (character != null && Server.StaticCharacters.ContainsKey(character.ID) && (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) != 0 && character is Npc && character.IsOnScreen && (character as Npc).Type == NpcType.PassableMonster && character.IsInMaxView(this.ServerLocation, 12))
+            else if (character != null && Server.StaticCharacters.ContainsKey(character.ID) && (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) != 0 && character is Npc && character.IsOnScreen && (character as Npc).Type == Npc.NpcType.PassableMonster && character.IsInMaxView(this.ServerLocation, 12))
             {
               if ((character as Npc).Image == 740 && this.MapInfo.Number == 2141 && !this.HasFPig())
                 npcList.Add((Npc)character);
@@ -18564,7 +18150,7 @@ namespace Flintstones
           {
             if (character != null && character is Npc && (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) != 0 && character.IsOnScreen && !character.IsDead && character.IsInMaxView(this.ServerLocation, 12) && Server.StaticCharacters.ContainsKey(character.ID))
             {
-              if ((character as Npc).Type == NpcType.NormalMonster)
+              if ((character as Npc).Type == Npc.NpcType.NormalMonster)
               {
                 if (this.Tab.openmedchest.Checked)
                 {
@@ -18587,7 +18173,7 @@ namespace Flintstones
                   }
                 }
               }
-              else if ((character as Npc).Type == NpcType.PassableMonster)
+              else if ((character as Npc).Type == Npc.NpcType.PassableMonster)
               {
                 if ((character as Npc).Image == 740 && this.MapInfo.Number == 2141 && !this.HasFPig())
                   npcList.Add((Npc)character);
@@ -18619,7 +18205,7 @@ namespace Flintstones
         {
           foreach (Character character in new Dictionary<uint, Character>((IDictionary<uint, Character>)this.Characters).Values)
           {
-            if ((character == null || (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) == 0 || !Server.StaticCharacters.ContainsKey(character.ID) || !character.IsOnScreen || !(character is Npc) || !character.IsInMaxView(this.ServerLocation, 12) || (character as Npc).Type != NpcType.NormalMonster && (character as Npc).Type != NpcType.PassableMonster ? 0 : (DateTime.UtcNow.Subtract(character.CreateTime).TotalMilliseconds > (double)this.RandomNumber((int)this.Tab.newtargetdelaya.Value, (int)this.Tab.newtargetdelayb.Value) ? 1 : 0)) != 0 && (image != null || image != string.Empty) && int.Parse(image) == (character as Npc).Image)
+            if ((character == null || (this.Tab.recorditemdata.Checked ? (character.Name != string.Empty ? 1 : 0) : 1) == 0 || !Server.StaticCharacters.ContainsKey(character.ID) || !character.IsOnScreen || !(character is Npc) || !character.IsInMaxView(this.ServerLocation, 12) || (character as Npc).Type != Npc.NpcType.NormalMonster && (character as Npc).Type != Npc.NpcType.PassableMonster ? 0 : (DateTime.UtcNow.Subtract(character.CreateTime).TotalMilliseconds > (double)this.RandomNumber((int)this.Tab.newtargetdelaya.Value, (int)this.Tab.newtargetdelayb.Value) ? 1 : 0)) != 0 && (image != null || image != string.Empty) && int.Parse(image) == (character as Npc).Image)
             {
               if (this.Tab.recorditemdata.Checked)
               {
@@ -18989,7 +18575,7 @@ namespace Flintstones
       {
         foreach (Character character in this.Characters.Values.ToArray<Character>())
         {
-          if (character != null && character.IsOnScreen && character.IsInFront(this.ServerLocation) && (!(character is Npc) || (character as Npc).Type != NpcType.Item))
+          if (character != null && character.IsOnScreen && character.IsInFront(this.ServerLocation) && (!(character is Npc) || (character as Npc).Type != Npc.NpcType.Item))
             return true;
         }
         return false;
