@@ -10,25 +10,26 @@ namespace Slowpoke.Chat
 {
   public static class ChatGameplay
   {
-    public static void Handle(ChatContext ctx)
+    public static void Handle(ChatContext context)
     {
-      var client = ctx.Client;
+      var client = context.Client;
 
-      // Lost pet logic
-      if (ctx.Type == 0 && ctx.SenderId == client.PlayerID)
+      if (context.Type == 0 && context.SenderId == client.PlayerID)
       {
-        if (ctx.Message.Equals("Don't get lost again.") 
-            || ctx.Equals("Let's go to mommy.") 
-            || ctx.Equals("You are safe now!") 
-            || ctx.Equals("Gotcha!") 
-            || ctx.Equals("Don't be scared."))
+         // Lost pet logic
+        if (context.Message.Equals("Don't get lost again.") 
+            || context.Equals("Let's go to mommy.") 
+            || context.Equals("You are safe now!") 
+            || context.Equals("Gotcha!") 
+            || context.Equals("Don't be scared."))
           client.losterbiedelay = DateTime.UtcNow;
 
-        if (ctx.Equals("I caught one!") 
-            || ctx.Equals("Victory!") 
-            || ctx.Equals("Got it!") 
-            || ctx.Equals("Gotcha!") 
-            || ctx.Equals("Got one!"))
+        // Bug catching event logic
+        if (context.Equals("I caught one!") 
+            || context.Equals("Victory!") 
+            || context.Equals("Got it!") 
+            || context.Equals("Gotcha!") 
+            || context.Equals("Got one!"))
           client.bugtimer = DateTime.UtcNow;
 
       }
@@ -36,10 +37,10 @@ namespace Slowpoke.Chat
 
 
       // NPC summon trigger
-      if ((ctx.Message.Contains("Kill...") || ctx.Message.Contains("Ahhh...")) &&
-          Server.StaticCharacters.ContainsKey(ctx.SenderId))
+      if ((context.Message.Contains("Kill...") || context.Message.Contains("Ahhh...")) &&
+          Server.StaticCharacters.ContainsKey(context.SenderId))
       {
-        var npc = Server.StaticCharacters[ctx.SenderId];
+        var npc = Server.StaticCharacters[context.SenderId];
         if (!npc.HasSummoned)
           npc.HasSummoned = true;
       }

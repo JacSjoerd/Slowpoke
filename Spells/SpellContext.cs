@@ -19,13 +19,15 @@ namespace Slowpoke.Spells
     public static SpellContext FromPacket(Client client, ClientPacket msg)
     {
       int slot = msg.ReadByte();
-      var spell = client.SpellBook[slot - 1];
+      Spell spell = client.SpellBook[slot - 1];
       int bodyDataLength = msg.BodyData.Length;
 
       uint? target = null;
 
       if (bodyDataLength > 6)
+      {
         target = msg.ReadUInt32();
+      }
 
       Logger.Debug($"SpellContext.FromPacket: Client={client.Name}, Spell={spell.Name}, Slot={slot}, TargetId={(target.HasValue ? target.Value.ToString() : "None")}");
 

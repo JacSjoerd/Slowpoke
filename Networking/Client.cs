@@ -651,7 +651,7 @@ namespace Flintstones
 
     public bool Connected { get; private set; }
 
-    public Server Server { get; private set; }
+    public Server Server { get; set; }
 
     public ClientTab Tab { get; private set; }
 
@@ -10998,7 +10998,7 @@ namespace Flintstones
           spellAttacks2[spell.Name] = true;
       }
 
-      // Add them in the defined order
+      // Add them in the defined order as in the dictionary
       foreach (string name in spellAttacks2.Keys)
       {
         if (spellAttacks2[name] == true)

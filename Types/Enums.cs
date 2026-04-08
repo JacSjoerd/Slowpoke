@@ -51,6 +51,28 @@ namespace Flintstones
   }
 
   /// <summary>
+  /// Enum for Gear slots, matching server response for the slotNr.
+  /// </summary>
+  public enum GearSlot
+  {
+    MainHand = 1,
+    Armor,
+    OffHand,
+    Head,
+    Ears,
+    Neck,
+    RingRight,
+    RingLeft,
+    HandRight,
+    HandLeft,
+    Waist,
+    Legs,
+    Feet,
+    Cosmetic1,
+    BodyCosmetic,
+  }
+
+  /// <summary>
   /// Specifies the Gender of a character or gender specific items. The Any value can be used to indicate that an item is suitable for all genders.
   /// </summary>
   public enum Gender

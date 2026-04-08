@@ -39,7 +39,7 @@ namespace Slowpoke.Views {
         public static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("slowpoke.Views.ClientTab", typeof(ClientTab).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("Slowpoke.Views.ClientTab", typeof(ClientTab).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;

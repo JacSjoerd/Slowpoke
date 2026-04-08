@@ -9,6 +9,7 @@ namespace Slowpoke.Networking.Login
 {
   internal class LoginContext
   {
+    public Client Client;
     public string Name;
     public string Password;
 
@@ -20,6 +21,7 @@ namespace Slowpoke.Networking.Login
 
       return new LoginContext
       {
+        Client = client,
         Name = name,
         Password = password,
       };

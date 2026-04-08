@@ -17,8 +17,7 @@ namespace Slowpoke.Spells
       var client = context.Client;
 
       client.newtargetdelay = DateTime.UtcNow;
-      if (context.TargetId != null)
-        client.LastTarget = (uint)context.TargetId;
+      client.LastTarget = context.TargetId ?? 0;
 
       if (client.Characters.ContainsKey(client.LastTarget) &&
           client.Characters[client.LastTarget] != null &&

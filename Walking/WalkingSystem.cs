@@ -17,6 +17,21 @@ namespace Slowpoke.Walking
 
       WalkingContext.ToPacket(client, msg);
 
+      Logger.Debug($"[{client.Name}:HandleWalking] Walking {context.Direction.ToString()} to ({client.ClientLocation.X}, {client.ClientLocation.Y})");
+
+      return true;
+    }
+
+    public static bool HandleLocation(Client client, ServerPacket msg)
+    {
+      var context = LocationContext.FromPacket(client, msg);
+
+      client.ServerLocation.X = context.X;
+      client.ServerLocation.Y = context.Y;
+      client.checkedtiles.Add($"{context.X},{context.Y}");
+
+      Logger.Debug($"[{client.Name}:HandleLocation] location updated to ({context.X}, {context.Y})");
+
       return true;
     }
 

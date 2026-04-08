@@ -5,7 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Slowpoke.Spells
+namespace Slowpoke.Cooldown
+
 {
   public static class CooldownSystem
   {

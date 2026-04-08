@@ -4,8 +4,10 @@
 //SlowPoke
 //SlowPoke
 
+using Slowpoke.Cooldown;
 using Slowpoke.Chat;
 using Slowpoke.Networking.Login;
+using Slowpoke.Skills;
 using Slowpoke.Spells;
 using Slowpoke.Walking;
 using Slowpoke.Inventory;
@@ -28,6 +30,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
 using static Flintstones.GlobalConstants;
+using System.Threading.Tasks;
 
 namespace Flintstones
 {
@@ -68,7 +71,7 @@ namespace Flintstones
 
     public ServerMessageHandler[] ServerMessageHandlers { get; private set; }
 
-    public EndPoint RemoteEndPoint { get; private set; }
+    public EndPoint RemoteEndPoint { get; set; }
 
     public static List<Client> Clients { get; private set; }
 
@@ -189,25 +192,39 @@ namespace Flintstones
       //this.ClientMessageHandlers[6] = new ClientMessageHandler(this.ClientMessage_0x06_Walking);
       this.ClientMessageHandlers[6] = WalkingSystem.HandleWalking;
       //this.ClientMessageHandlers[8] = new ClientMessageHandler(this.ClientMessage_0x08_Drop);
-      this.ClientMessageHandlers[8] = DropSystem.HandleDrop;
-      this.ClientMessageHandlers[11] = new ClientMessageHandler(this.ClientMessage_0x0B_LogOut);
-      this.ClientMessageHandlers[14] = new ClientMessageHandler(this.ClientMessage_0x0E_Speak);
+      this.ClientMessageHandlers[8] = InventorySystem.HandleDrop;
+      //this.ClientMessageHandlers[11] = new ClientMessageHandler(this.ClientMessage_0x0B_LogOut);
+      this.ClientMessageHandlers[11] = LoginSystem.HandleLogout;
+      //this.ClientMessageHandlers[14] = new ClientMessageHandler(this.ClientMessage_0x0E_Speak);
+      this.ClientMessageHandlers[14] = ChatSystem.HandleSpeak;
       //this.ClientMessageHandlers[15] = new ClientMessageHandler(this.ClientMessage_0x0F_UseSpell);
       this.ClientMessageHandlers[15] = SpellSystem.HandleUseSpell;
-      this.ClientMessageHandlers[16] = new ClientMessageHandler(this.ClientMessage_0x10_ClientJoin);
-      this.ClientMessageHandlers[19] = new ClientMessageHandler(this.ClientMessage_0x13_Assail);
-      this.ClientMessageHandlers[28] = new ClientMessageHandler(this.ClientMessage_0x1C_UseItem);
-      this.ClientMessageHandlers[46] = new ClientMessageHandler(this.ClientMessage_0x2E_Group);
-      this.ClientMessageHandlers[48] = new ClientMessageHandler(this.ClientMessage_0x30_SwapSlots);
-      this.ClientMessageHandlers[57] = new ClientMessageHandler(this.ClientMessage_0x39_DialogueSelect);
-      this.ClientMessageHandlers[58] = new ClientMessageHandler(this.ClientMessage_0x3A_PopupSelect);
-      this.ClientMessageHandlers[62] = new ClientMessageHandler(this.ClientMessage_0x3E_UseSkill);
-      this.ClientMessageHandlers[63] = new ClientMessageHandler(this.ClientMessage_0x3F_WorldMapSelect);
-      this.ClientMessageHandlers[67] = new ClientMessageHandler(this.ClientMessage_0x43_ClickCharacter);
-      this.ClientMessageHandlers[68] = new ClientMessageHandler(this.ClientMessage_0x44_UnequipGear);
-      this.ClientMessageHandlers[77] = new ClientMessageHandler(this.ClientMessage_0x4D_SpellLines);
-      this.ServerMessageHandlers[3] = new ServerMessageHandler(this.ServerMessage_0x03_Redirect);
-      this.ServerMessageHandlers[4] = new ServerMessageHandler(this.ServerMessage_0x04_Location);
+      //this.ClientMessageHandlers[16] = new ClientMessageHandler(this.ClientMessage_0x10_ClientJoin);
+      this.ClientMessageHandlers[16] = LoginSystem.HandleClientJoin;
+      //this.ClientMessageHandlers[19] = new ClientMessageHandler(this.ClientMessage_0x13_Assail);
+      this.ClientMessageHandlers[19] = SkillSystem.HandleAssail;
+      //this.ClientMessageHandlers[28] = new ClientMessageHandler(this.ClientMessage_0x1C_UseItem);
+      this.ClientMessageHandlers[28] = InventorySystem.HandleUseItem;
+      this.ClientMessageHandlers[46] = new ClientMessageHandler(this.ClientMessage_0x2E_Group);  // <========== TODO
+      //this.ClientMessageHandlers[48] = new ClientMessageHandler(this.ClientMessage_0x30_SwapSlots);
+      this.ClientMessageHandlers[48] = InventorySystem.HandleSwapSlot;
+      //this.ClientMessageHandlers[57] = new ClientMessageHandler(this.ClientMessage_0x39_DialogueSelect);
+      this.ClientMessageHandlers[57] = DialogSystem.HandleDialogSelect;
+      //this.ClientMessageHandlers[58] = new ClientMessageHandler(this.ClientMessage_0x3A_PopupSelect);
+      this.ClientMessageHandlers[58] = DialogSystem.HandlePopupSelect;
+      //this.ClientMessageHandlers[62] = new ClientMessageHandler(this.ClientMessage_0x3E_UseSkill);
+      this.ClientMessageHandlers[62] = SkillSystem.HandleUseSkill;
+      //this.ClientMessageHandlers[63] = new ClientMessageHandler(this.ClientMessage_0x3F_WorldMapSelect);
+      this.ClientMessageHandlers[63] = WorldMapSystem.HandleWorldMap;
+      this.ClientMessageHandlers[67] = new ClientMessageHandler(this.ClientMessage_0x43_ClickCharacter);// <========== TODO
+      //this.ClientMessageHandlers[68] = new ClientMessageHandler(this.ClientMessage_0x44_UnequipGear);
+      this.ClientMessageHandlers[68] = GearSystem.HandleUnequip;
+      //this.ClientMessageHandlers[77] = new ClientMessageHandler(this.ClientMessage_0x4D_SpellLines);
+      this.ClientMessageHandlers[77] = SpellSystem.HandleSpellLines;
+      //this.ServerMessageHandlers[3] = new ServerMessageHandler(this.ServerMessage_0x03_Redirect);
+      this.ServerMessageHandlers[3] = LoginSystem.HandleRedirect;
+      //this.ServerMessageHandlers[4] = new ServerMessageHandler(this.ServerMessage_0x04_Location);
+      this.ServerMessageHandlers[4] = WalkingSystem.HandleLocation;
       this.ServerMessageHandlers[5] = new ServerMessageHandler(this.ServerMessage_0x05_PlayerID);
       this.ServerMessageHandlers[7] = new ServerMessageHandler(this.ServerMessage_0x07_DisplayNPC);
       this.ServerMessageHandlers[8] = new ServerMessageHandler(this.ServerMessage_0x08_Statistics);
@@ -1273,6 +1290,7 @@ namespace Flintstones
           }
         }
       }
+
       if (num1 == (byte) 2 && client.FakeSkills.Count > 0)
       {
         foreach (Skill skill in client.FakeSkills.Values)
@@ -1392,7 +1410,6 @@ namespace Flintstones
               client.heavychest = false;
               client.heavychestopen = true;
               client.chestfee = str;
-              break;
             }
             break;
         }
@@ -1403,7 +1420,7 @@ namespace Flintstones
     public bool ClientMessage_0x3E_UseSkill(Client client, ClientPacket msg)
     {
       int num = (int) msg.ReadByte();
-      Skill skill = (Skill) null;
+      Skill skill = null;
       foreach (Skill skill1 in client.FakeSkills.Values)
       {
         if (skill1 != null && num == skill1.SkillSlot)
@@ -1412,20 +1429,28 @@ namespace Flintstones
           break;
         }
       }
-      if (skill != null && client.Combos.Count<KeyValuePair<string, string>>() > 0 && client.Combos.ContainsKey(skill.Name))
-        new Thread((ThreadStart) (() =>
+      if (skill != null && client.Combos.Count() > 0 && client.Combos.ContainsKey(skill.Name))
+      {
+        Task.Run(() =>
         {
           string combo = client.Combos[skill.Name];
-          char[] chArray = new char[1]{ '|' };
-          foreach (string str1 in combo.Split(chArray))
+          foreach (string part in combo.Split('|'))
           {
-            string str2 = str1.Trim();
-            if (str2.Equals("space", StringComparison.CurrentCultureIgnoreCase) || str2.Equals("assail", StringComparison.CurrentCultureIgnoreCase))
+            string skillName = part.Trim();
+            if (skillName.Equals("space", StringComparison.CurrentCultureIgnoreCase)
+              || skillName.Equals("assail", StringComparison.CurrentCultureIgnoreCase))
+            {
               client.Assail();
-            else if (!client.UseSkill(str2) && !client.UseMedSkill(str2) && !client.UseItem(str2))
-              client.Cast(str2, new uint?());
+            }
+            else if (!client.UseSkill(skillName)
+              && !client.UseMedSkill(skillName)
+              && !client.UseItem(skillName))
+            {
+              client.Cast(skillName, null);
+            }
           }
-        })).Start();
+        });
+      }
       return true;
     }
 
@@ -1508,7 +1533,7 @@ namespace Flintstones
       else
         Server.DAServer[key] = (int) port;
       Array.Reverse((Array) address);
-      this.RemoteEndPoint = (EndPoint) new IPEndPoint(new IPAddress(address), (int) port);
+      this.RemoteEndPoint = new IPEndPoint(new IPAddress(address), port);
       msg.BodyData[0] = (byte) 1;
       msg.BodyData[1] = (byte) 0;
       msg.BodyData[2] = (byte) 0;

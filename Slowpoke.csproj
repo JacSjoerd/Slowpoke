@@ -9,7 +9,7 @@
     <AssemblyName>SlowPoke</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <RootNamespace>slowpoke</RootNamespace>
+    <RootNamespace>Slowpoke</RootNamespace>
     <TargetFrameworkProfile />
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
@@ -66,24 +66,39 @@
     <Compile Include="Chat\ChatGameplay.cs" />
     <Compile Include="Chat\ChatSystem.cs" />
     <Compile Include="Chat\ChatUI.cs" />
+    <Compile Include="Chat\DialogReset.cs" />
+    <Compile Include="Chat\DialogSelectContext.cs" />
+    <Compile Include="Chat\DialogSystem.cs" />
+    <Compile Include="Chat\PopupSelectContext.cs" />
+    <Compile Include="Chat\SpeakContext.cs" />
     <Compile Include="Inventory\DropContext.cs" />
     <Compile Include="Inventory\DropFilter.cs" />
-    <Compile Include="Inventory\DropSystem.cs" />
+    <Compile Include="Inventory\GearSystem.cs" />
+    <Compile Include="Inventory\InventorySystem.cs" />
+    <Compile Include="Inventory\SwapSlotContext.cs" />
+    <Compile Include="Inventory\UnequipContext.cs" />
+    <Compile Include="Inventory\UseItemContext.cs" />
+    <Compile Include="Inventory\UseItemGameplay.cs" />
     <Compile Include="Networking\GlobalConstants.cs" />
     <Compile Include="Networking\Logger.cs" />
+    <Compile Include="Networking\Login\JoinContext.cs" />
     <Compile Include="Networking\Login\LoginContext.cs" />
     <Compile Include="Networking\Login\LoginSystem.cs" />
+    <Compile Include="Networking\Login\LogoutContext.cs" />
+    <Compile Include="Networking\Login\RedirectContext.cs" />
+    <Compile Include="Skills\SkillSystem.cs" />
+    <Compile Include="Skills\UseSkillContext.cs" />
     <Compile Include="Spells\SpellAddContext.cs" />
     <Compile Include="Spells\SpellAddUI.cs" />
     <Compile Include="Spells\SpellBarSystem.cs" />
     <Compile Include="Spells\SpellBookSystem.cs" />
     <Compile Include="Spells\SpellCasting.cs" />
     <Compile Include="Spells\SpellContext.cs" />
-    <Compile Include="Spells\CooldownContext.cs" />
-    <Compile Include="Spells\CooldownSystem.cs" />
+    <Compile Include="Cooldown\CooldownContext.cs" />
+    <Compile Include="Cooldown\CooldownSystem.cs" />
+    <Compile Include="Spells\SpellLineContext.cs" />
     <Compile Include="Spells\SpellRemoveContext.cs" />
     <Compile Include="Spells\SpellRemoveUI.cs" />
-    <Compile Include="Spells\SpellState.cs" />
     <Compile Include="Spells\SpellSystem.cs" />
     <Compile Include="Spells\SpelTargeting.cs" />
     <Compile Include="Types\Alts.cs" />
@@ -206,7 +221,6 @@
     <Compile Include="Types\User32.cs" />
     <Compile Include="Networking\Kernel32.cs" />
     <Compile Include="Types\Location.cs" />
-    <Compile Include="Types\Direction.cs" />
     <Compile Include="Forms\MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -263,8 +277,10 @@
     <Compile Include="Views\UserControl1.Designer.cs">
       <DependentUpon>UserControl1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Walking\LocationContext.cs" />
     <Compile Include="Walking\WalkingSystem.cs" />
     <Compile Include="Walking\WalkingContext.cs" />
+    <Compile Include="Walking\WorldMapSystem.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Alarms\ALARMquiet.wav" />

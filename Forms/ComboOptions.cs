@@ -96,11 +96,12 @@ namespace Flintstones
       {
         this.comboskillslist.Enabled = true;
         this.combodelete.Enabled = true;
-        if (this.Client.FakeSkills.ContainsKey(this.comboslistbox.SelectedItem.ToString()) && this.Client.Combos.ContainsKey(this.comboslistbox.SelectedItem.ToString()))
-          this.comboskillslist.Text = this.Client.Combos[this.comboslistbox.SelectedItem.ToString()].Replace("|", Environment.NewLine);
-        this.comboslot.Value = (Decimal) this.Client.FakeSkills[this.comboslistbox.SelectedItem.ToString()].SkillSlot;
-        this.comboicon.Value = (Decimal) this.Client.FakeSkills[this.comboslistbox.SelectedItem.ToString()].Icon;
-        this.comboname.Text = this.comboslistbox.SelectedItem.ToString();
+        var comboSkill = this.comboslistbox.SelectedItem.ToString();
+        if (this.Client.FakeSkills.ContainsKey(comboSkill) && this.Client.Combos.ContainsKey(comboSkill))
+          this.comboskillslist.Text = this.Client.Combos[comboSkill].Replace("|", Environment.NewLine);
+        this.comboslot.Value = (Decimal) this.Client.FakeSkills[comboSkill].SkillSlot;
+        this.comboicon.Value = (Decimal) this.Client.FakeSkills[comboSkill].Icon;
+        this.comboname.Text = comboSkill;
         this.comboadd.Text = "Edit";
       }
       else
